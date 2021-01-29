@@ -17,9 +17,9 @@ namespace ATL.AudioData.IO
             long initialPos = position;
             string key, value;
             int size;
-            byte[] data = new byte[256];
-
-            while (source.Position < initialPos + chunkSize - 4) // 4 being the "INFO" purpose that belongs to the chunk
+            byte[] data = new byte[chunkSize];
+            long maxPos = initialPos + chunkSize - 4; // 4 being the "INFO" purpose that belongs to the chunk
+            while (source.Position < maxPos) 
             {
                 // Key
                 source.Read(data, 0, 4);
@@ -27,12 +27,15 @@ namespace ATL.AudioData.IO
                 // Size
                 source.Read(data, 0, 4);
                 size = StreamUtils.DecodeInt32(data);
-                // Value
-                value = StreamUtils.ReadNullTerminatedString(source, Utils.Latin1Encoding);
-
-                if (value.Length > 0) meta.SetMetaField("info." + key, value, readTagParams.ReadAllMetaFrames);
-
-                position = source.Position;
+                // Do _NOT_ use StreamUtils.ReadNullTerminatedString because non-textual fields may be found here (e.g. NITR)
+                if (size > 0)
+                {
+                    source.Read(data, 0, size);
+                    // Manage parasite zeroes at the end of data
+                    if (source.Position < maxPos && source.ReadByte() != 0) source.Seek(-1, SeekOrigin.Current);
+                    value = Utils.Latin1Encoding.GetString(data, 0, size);
+                    meta.SetMetaField("info." + key, Utils.StripEndingZeroChars(value), readTagParams.ReadAllMetaFrames);
+                }
             }
         }
 
@@ -42,6 +45,7 @@ namespace ATL.AudioData.IO
             if (meta.Artist.Length > 0) return true;
             if (meta.Comment.Length > 0) return true;
             if (meta.Genre.Length > 0) return true;
+            if (meta.Year.Length > 0) return true;
             if (meta.Copyright.Length > 0) return true;
 
             foreach (string key in meta.AdditionalFields.Keys)
@@ -72,21 +76,25 @@ namespace ATL.AudioData.IO
             value = Utils.ProtectValue(meta.Artist);
             if (0 == value.Length && additionalFields.Keys.Contains("info.IART")) value = additionalFields["info.IART"];
             if (value.Length > 0) writeSizeAndNullTerminatedString("IART", value, w, writtenFields);
-            // Copyright
-            value = Utils.ProtectValue(meta.Copyright);
-            if (0 == value.Length && additionalFields.Keys.Contains("info.ICOP")) value = additionalFields["info.ICOP"];
-            if (value.Length > 0) writeSizeAndNullTerminatedString("ICOP", value, w, writtenFields);
-            // Genre
-            value = Utils.ProtectValue(meta.Genre);
-            if (0 == value.Length && additionalFields.Keys.Contains("info.IGNR")) value = additionalFields["info.IGNR"];
-            if (value.Length > 0) writeSizeAndNullTerminatedString("IGNR", value, w, writtenFields);
             // Comment
             value = Utils.ProtectValue(meta.Comment);
             if (0 == value.Length && additionalFields.Keys.Contains("info.ICMT")) value = additionalFields["info.ICMT"];
             if (value.Length > 0) writeSizeAndNullTerminatedString("ICMT", value, w, writtenFields);
+            // Copyright
+            value = Utils.ProtectValue(meta.Copyright);
+            if (0 == value.Length && additionalFields.Keys.Contains("info.ICOP")) value = additionalFields["info.ICOP"];
+            if (value.Length > 0) writeSizeAndNullTerminatedString("ICOP", value, w, writtenFields);
+            // Year
+            value = Utils.ProtectValue(meta.Year);
+            if (0 == value.Length && additionalFields.Keys.Contains("info.ICRD")) value = additionalFields["info.ICRD"];
+            if (value.Length > 0) writeSizeAndNullTerminatedString("ICRD", value, w, writtenFields);
+            // Genre
+            value = Utils.ProtectValue(meta.Genre);
+            if (0 == value.Length && additionalFields.Keys.Contains("info.IGNR")) value = additionalFields["info.IGNR"];
+            if (value.Length > 0) writeSizeAndNullTerminatedString("IGNR", value, w, writtenFields);
 
             string shortKey;
-            foreach(string key in additionalFields.Keys)
+            foreach (string key in additionalFields.Keys)
             {
                 if (key.StartsWith("info."))
                 {
@@ -118,7 +126,8 @@ namespace ATL.AudioData.IO
             {
                 LogDelegator.GetLogDelegate()(Log.LV_WARNING, "'" + key + "' : LIST.INFO field key must be 4-characters long; cropping");
                 key = Utils.BuildStrictLengthString(key, 4, ' ');
-            } else if (key.Length < 4)
+            }
+            else if (key.Length < 4)
             {
                 LogDelegator.GetLogDelegate()(Log.LV_WARNING, "'" + key + "' : LIST.INFO field key must be 4-characters long; completing with whitespaces");
                 key = Utils.BuildStrictLengthString(key, 4, ' ');
@@ -126,11 +135,15 @@ namespace ATL.AudioData.IO
             w.Write(Utils.Latin1Encoding.GetBytes(key));
 
             byte[] buffer = Utils.Latin1Encoding.GetBytes(value);
-            w.Write(buffer.Length);
+            // Needs one byte of padding if data size is odd
+            int paddingByte = ((buffer.Length + 1) % 2 > 0) ? 1 : 0;
+            w.Write(buffer.Length + 1 + paddingByte);
             w.Write(buffer);
             w.Write((byte)0); // String is null-terminated
+            if (paddingByte > 0)
+                w.Write((byte)0);
 
-            writtenFields.Add("info."+key, value);
+            writtenFields.Add("info." + key, value);
         }
     }
 }

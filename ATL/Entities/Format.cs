@@ -1,4 +1,3 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -9,69 +8,98 @@ namespace ATL
     /// </summary>
     public class Format : IEnumerable
     {
-        // Name of the format
-        protected string fName;
-        // ID of the format
-        protected int fID;
-        // MIME type of the format
+        /// <summary>
+        /// MIME types associated with the format
+        /// </summary>
         protected IDictionary<string, int> mimeList;
-        // List of file extensions proper to this format
+        /// <summary>
+        /// List of file extensions proper to this format
+        /// </summary>
         protected IDictionary<string, int> extList;
-        // true if the format is readable by ATL
-        protected bool fReadable;
 
-        [Obsolete("Use Format(ID, Name)")]
-        public Format(string iName)
+        /// <summary>
+        /// Construct a format
+        /// </summary>
+        /// <param name="id">Unique ID</param>
+        /// <param name="name">Name</param>
+        /// <param name="shortName">Short name</param>
+        public Format(int id, string name, string shortName = "")
         {
-            init(-1, iName);
+            init(id, name, (0 == shortName.Length) ? name : shortName);
         }
 
-        public Format(int ID, string Name)
-        {
-            init(ID, Name);
-        }
-
+        /// <summary>
+        /// Construct a format by copying data from the given Format object
+        /// </summary>
+        /// <param name="f">Format to copy data from</param>
         public Format(Format f)
         {
             copyFrom(f);
         }
 
+        /// <summary>
+        /// Integrate data from the given Format object
+        /// </summary>
+        /// <param name="iFormat">Format to copy data from</param>
         protected virtual void copyFrom(Format iFormat)
         {
-            this.fName = iFormat.fName;
-            this.fID = iFormat.fID;
+            this.ID = iFormat.ID;
+            this.Name = iFormat.Name;
+            this.ShortName = iFormat.ShortName;
             this.mimeList = new Dictionary<string, int>(iFormat.mimeList);
             this.extList = new Dictionary<string, int>(iFormat.extList);
-            this.fReadable = iFormat.fReadable;
+            this.Readable = iFormat.Readable;
         }
 
-        protected virtual void init(int ID, string Name)
+        /// <summary>
+        /// Initialize the object from its parts
+        /// </summary>
+        /// <param name="id">Unique ID</param>
+        /// <param name="name">Name</param>
+        protected virtual void init(int id, string name)
         {
-            fID = ID;
-            fName = Name;
-            fReadable = true;
+            init(id, name, "");
+        }
+
+        /// <summary>
+        /// Initialize the object from its parts
+        /// </summary>
+        /// <param name="id">Unique ID</param>
+        /// <param name="name">Name</param>
+        /// <param name="shortName">Short name</param>
+        protected virtual void init(int id, string name, string shortName)
+        {
+            this.ID = id;
+            this.Name = name;
+            this.ShortName = (0 == shortName.Length) ? name : shortName;
+            this.Readable = true;
             extList = new Dictionary<string, int>();
             mimeList = new Dictionary<string, int>();
         }
 
-        public string Name
-        {
-            get { return fName; }
-            set { fName = value; }
-        }
+        /// <summary>
+        /// Name
+        /// </summary>
+        public string Name { get; set; }
 
-        public int ID
-        {
-            get { return fID; }
-            set { fID = value; }
-        }
+        /// <summary>
+        /// Short name
+        /// </summary>
+        public string ShortName { get; set; }
 
-        public bool Readable
-        {
-            get { return fReadable; }
-            set { fReadable = value; }
-        }
+        /// <summary>
+        /// Internal unique ID
+        /// </summary>
+        public int ID { get; set; }
 
+        /// <summary>
+        /// True if the format is readable by ATL
+        /// </summary>
+        public bool Readable { get; set; }
+
+        /// <summary>
+        /// MIME types associated with the format
+        /// </summary>
         public ICollection<string> MimeList
         {
             get { return mimeList.Keys; }
@@ -88,27 +116,41 @@ namespace ATL
 
         #endregion
 
-        // Adds the extension ext to the extensions list of this Format
+        /// <summary>
+        /// Add the given MIME-type to the supported MIME-types of this Format
+        /// </summary>
+        /// <param name="mimeType">MIME-type to add</param>
         public void AddMimeType(string mimeType)
         {
             if (!mimeList.ContainsKey(mimeType.ToLower()))
                 mimeList.Add(mimeType.ToLower(), 0);
         }
 
-        // Tests if the extension ext is a valid extension of the current Format
+        /// <summary>
+        /// Test if the given MIME-type is associated with the current Format
+        /// </summary>
+        /// <param name="mimeType">MIME-type to test</param>
+        /// <returns>True if the given MIME-type is associated with the current Format; false if not</returns>
         public bool IsValidMimeType(string mimeType)
         {
             return mimeList.ContainsKey(mimeType.ToLower());
         }
 
-        // Adds the extension ext to the extensions list of this Format
+        /// <summary>
+        /// Add the given extension to the supported extensions list
+        /// </summary>
+        /// <param name="ext">Extension to add to the supported extensions list (e.g. "bmp" for the Bitmap image format)</param>
         public void AddExtension(string ext)
         {
             if (!extList.ContainsKey(ext.ToLower()))
                 extList.Add(ext.ToLower(), 0);
         }
 
-        // Tests if the extension ext is a valid extension of the current Format
+        /// <summary>
+        /// Test if the given extension is a valid extension of the current Format
+        /// </summary>
+        /// <param name="ext">Extension to test (e.g. "bmp" for the Bitmap image format)</param>
+        /// <returns>True if the given extension is a valid extension of the current Format; false if not</returns>
         public bool IsValidExtension(string ext)
         {
             return extList.ContainsKey(ext.ToLower());

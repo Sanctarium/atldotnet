@@ -17,6 +17,13 @@ namespace ATL.AudioData
 		{
 			get;
 		}
+        /// <summary>
+        /// Available metadata formats
+        /// </summary>
+        IList<Format> MetadataFormats
+        {
+            get;
+        }
 		/// <summary>
 		/// Title of the track
 		/// </summary>
@@ -81,14 +88,14 @@ namespace ATL.AudioData
             get;
         }
         /// <summary>
-        /// Release date (DateTime.MinValue if field does not exist)
+        /// Recording date (DateTime.MinValue if field does not exist)
         /// </summary>
         DateTime Date
         {
             get;
         }
         /// <summary>
-        /// Year
+        /// Recording Year
         /// </summary>
         string Year
 		{
@@ -144,6 +151,13 @@ namespace ATL.AudioData
             get;
         }
         /// <summary>
+        /// Publishing Date (DateTime.MinValue if field does not exist)
+        /// </summary>
+        DateTime PublishingDate
+        {
+            get;
+        }
+        /// <summary>
         /// Album Artist
         /// </summary>
         string AlbumArtist
@@ -178,7 +192,7 @@ namespace ATL.AudioData
         /// <summary>
         /// Physical size of the tag (bytes)
         /// </summary>
-        int Size
+        long Size
         {
             get;
         }

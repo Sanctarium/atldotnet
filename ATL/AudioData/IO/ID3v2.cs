@@ -35,19 +35,21 @@ namespace ATL.AudioData.IO
     ///     Even though ID3v2.4 allows it, ATL does not support "individual" unsynchronization at frame level
     ///     => Either the whole tag (all frames) is unsynchronized, or none is
     ///
-    ///     5. Windows explorer, embedded pictures and ID3v2.4
-    ///     
-    ///     ATL is not able to guarantee a tag saved with ID3v2.4 will have its embedded picture visible from Windows Explorer
-    ///     It seems there's a magic formula to do that because MP3tag does it well. So far I haven't found it.
-    ///     => If you want to save ID3v2 tags and view the embedded pictures on Windows Explorer, please save the tag using ID3v2.3
-    ///     (set Settings.ID3v2_tagSubVersion = 3)
-    /// 
     /// </summary>
     public class ID3v2 : MetaDataIO
     {
-        public const byte TAG_VERSION_2_2 = 2;             // Code for ID3v2.2.x tag
-        public const byte TAG_VERSION_2_3 = 3;             // Code for ID3v2.3.x tag
-        public const byte TAG_VERSION_2_4 = 4;             // Code for ID3v2.4.x tag
+        /// <summary>
+        /// ID3v2.2
+        /// </summary>
+        public const byte TAG_VERSION_2_2 = 2;
+        /// <summary>
+        /// ID3v2.3
+        /// </summary>
+        public const byte TAG_VERSION_2_3 = 3;
+        /// <summary>
+        /// ID3v2.4
+        /// </summary>
+        public const byte TAG_VERSION_2_4 = 4;
 
         private TagInfo tagHeader;
 
@@ -171,7 +173,8 @@ namespace ATL.AudioData.IO
                 { "TCON", TagData.TAG_FIELD_GENRE },
                 { "TCOP", TagData.TAG_FIELD_COPYRIGHT },
                 { "TPUB", TagData.TAG_FIELD_PUBLISHER },
-                { "CTOC", TagData.TAG_FIELD_CHAPTERS_TOC_DESCRIPTION }
+                { "CTOC", TagData.TAG_FIELD_CHAPTERS_TOC_DESCRIPTION },
+                { "TDRL", TagData.TAG_FIELD_PUBLISHING_DATE }
             };
 
         // Mapping between ID3v2.2/3 fields and ID3v2.4 fields not included in frameMapping_v2x, and that have changed between versions
@@ -380,6 +383,43 @@ namespace ATL.AudioData.IO
             public byte TimestampFormat;
             public byte ContentType;
         }
+
+
+        // --------------- OPTIONAL INFORMATIVE OVERRIDES
+
+        /// <inheritdoc/>
+        public override IList<Format> MetadataFormats
+        {
+            get
+            {
+                Format format = new Format(MetaDataIOFactory.GetInstance().getFormatsFromPath("id3v2")[0]);
+                format.Name = format.Name + "." + tagVersion;
+                format.ID += tagVersion;
+                return new List<Format>(new Format[1] { format });
+            }
+        }
+
+
+        // --------------- MANDATORY INFORMATIVE OVERRIDES
+
+        /// <inheritdoc/>
+        protected override int getDefaultTagOffset()
+        {
+            return TO_BOF;
+        }
+
+        /// <inheritdoc/>
+        protected override int getImplementedTagType()
+        {
+            return MetaDataIOFactory.TAG_ID3V2;
+        }
+
+        /// <inheritdoc/>
+        public override byte FieldCodeFixedLength
+        {
+            get { return 0; } // Actually 4 when strictly applying specs, but thanks to TXXX fields, any code is supported
+        }
+
 
         // ********************* Auxiliary functions & voids ********************
 
@@ -612,7 +652,8 @@ namespace ATL.AudioData.IO
                     comment = new MetaFieldInfo(getImplementedTagType(), "");
                     comment.Language = structure.LanguageCode;
                     comment.NativeFieldCode = structure.ContentDescriptor;
-                } else if (shortFrameId.Equals("USL") || shortFrameId.Equals("ULT"))
+                }
+                else if (shortFrameId.Equals("USL") || shortFrameId.Equals("ULT"))
                 {
                     if (null == tagData.Lyrics) tagData.Lyrics = new LyricsInfo();
                     tagData.Lyrics.LanguageCode = structure.LanguageCode;
@@ -992,22 +1033,6 @@ namespace ATL.AudioData.IO
             return result;
         }
 
-        protected override int getDefaultTagOffset()
-        {
-            return TO_BOF;
-        }
-
-        protected override int getImplementedTagType()
-        {
-            return MetaDataIOFactory.TAG_ID3V2;
-        }
-
-        public override byte FieldCodeFixedLength
-        {
-            get { return 0; } // Actually 4 when strictly applying specs, but thanks to TXXX fields, any code is supported
-        }
-
-
         // Writes tag info using ID3v2.4 conventions
         internal int writeInternal(TagData tag, BinaryWriter w, string zone)
         {
@@ -1301,7 +1326,7 @@ namespace ATL.AudioData.IO
 
             if (tagHeader.UsesUnsynchronisation)
             {
-                MemoryStream s = new MemoryStream(Size);
+                MemoryStream s = new MemoryStream((int)Size);
                 using (BinaryWriter w = new BinaryWriter(s, tagEncoding))
                 {
                     result = writeChaptersInternal(writer, w, chapters, tagEncoding, writer.BaseStream.Position);
@@ -1387,13 +1412,31 @@ namespace ATL.AudioData.IO
                 frameWriter.Write(Utils.Latin1Encoding.GetBytes(chapter.UniqueID));
                 frameWriter.Write('\0');
 
-                frameWriter.Write(StreamUtils.EncodeBEUInt32(chapter.StartTime));
-                frameWriter.Write(StreamUtils.EncodeBEUInt32(chapter.EndTime));
-                frameWriter.Write(StreamUtils.EncodeBEUInt32(chapter.StartOffset));
-                frameWriter.Write(StreamUtils.EncodeBEUInt32(chapter.EndOffset));
+                uint startValue = chapter.StartTime;
+                uint endValue = chapter.EndTime;
+                // As per specs, unused value should be encoded as 0xFF to be ignored
+                if (0 == startValue + endValue)
+                {
+                    startValue = uint.MaxValue;
+                    endValue = uint.MaxValue;
+                }
+                frameWriter.Write(StreamUtils.EncodeBEUInt32(startValue));
+                frameWriter.Write(StreamUtils.EncodeBEUInt32(endValue));
+
+                startValue = chapter.StartOffset;
+                endValue = chapter.EndOffset;
+                // As per specs, unused value should be encoded as 0xFF to be ignored
+                if (0 == startValue + endValue)
+                {
+                    startValue = uint.MaxValue;
+                    endValue = uint.MaxValue;
+                }
+                frameWriter.Write(StreamUtils.EncodeBEUInt32(startValue));
+                frameWriter.Write(StreamUtils.EncodeBEUInt32(endValue));
 
                 if (chapter.Title != null && chapter.Title.Length > 0)
                 {
+                    // NB : FFmpeg uses Latin-1
                     writeTextFrame(frameWriter, "TIT2", chapter.Title, tagEncoding, "", "", true);
                 }
                 if (chapter.Subtitle != null && chapter.Subtitle.Length > 0)
@@ -1466,7 +1509,7 @@ namespace ATL.AudioData.IO
             w.Write(getNullTerminatorFromEncoding(tagEncoding));
 
             // Lyrics
-            foreach(LyricsInfo.LyricsPhrase phrase in lyrics.SynchronizedLyrics)
+            foreach (LyricsInfo.LyricsPhrase phrase in lyrics.SynchronizedLyrics)
             {
                 w.Write((byte)10); // Emulate SyltEdit's behaviour that seems to be the de facto standard
                 w.Write(tagEncoding.GetBytes(phrase.Text));
@@ -1491,7 +1534,8 @@ namespace ATL.AudioData.IO
             bool isCommentCode = false;
 
             bool writeValue = true;
-            bool writeTextEncoding = !noTextEncodingFields.Contains(frameCode);
+            bool isExplicitLatin1Encoding = noTextEncodingFields.Contains(frameCode);
+            bool writeTextEncoding = !isExplicitLatin1Encoding;
             bool writeNullTermination = true; // Required by specs; see paragraph 4, concerning $03 encoding
 
             ICollection<string> standardFrames = standardFrames_v24;
@@ -1502,7 +1546,7 @@ namespace ATL.AudioData.IO
 
             if (tagHeader.UsesUnsynchronisation && !isInsideUnsynch)
             {
-                s = new MemoryStream(Size);
+                s = new MemoryStream((int)Size);
                 w = new BinaryWriter(s, tagEncoding);
                 frameOffset = writer.BaseStream.Position;
             }
@@ -1598,22 +1642,42 @@ namespace ATL.AudioData.IO
             }
             else if (shortCode.Equals("WXX")) // User-defined URL
             {
+                byte[] desc;
+                byte[] url;
+                // Case 1 : Field read by ATL from a file
                 string[] parts = text.Split(Settings.InternalValueSeparator);
+                // Case 2 : User-defined value with the ID3v2 specs separator
+                // NB : Keeps a remaining null char when the desc is encoded with UTF-16, which is rare
+                if (1 == parts.Length) parts = text.Split('\0');
+                // Case 3 : User-defined value without separator
+                if (1 == parts.Length)
+                {
+                    desc = new byte[0];
+                    url = Utils.Latin1Encoding.GetBytes(parts[0]);
+                }
+                else
+                {
+                    desc = Utils.Latin1Encoding.GetBytes(parts[0]);
+                    url = Utils.Latin1Encoding.GetBytes(parts[1]);
+                }
+
+                // Write the field
                 w.Write(encodeID3v2CharEncoding(Utils.Latin1Encoding));     // ISO-8859-1 seems to be the de facto norm, although spec allows fancier encodings
-                                                                            //w.Write(getBomFromEncoding(tagEncoding));                 // No BOM for ISO-8859-1
-                w.Write(Utils.Latin1Encoding.GetBytes(parts[0]));
+                //w.Write(getBomFromEncoding(tagEncoding));                 // No BOM for ISO-8859-1
+                w.Write(desc);
                 w.Write(getNullTerminatorFromEncoding(Utils.Latin1Encoding));
-                w.Write(Utils.Latin1Encoding.GetBytes(parts[1]));
+                w.Write(url);
 
                 writeValue = false;
             }
 
             if (writeValue)
             {
-                if (writeTextEncoding) w.Write(encodeID3v2CharEncoding(tagEncoding)); // Encoding according to ID3v2 specs
-                w.Write(getBomFromEncoding(tagEncoding));
-                w.Write(tagEncoding.GetBytes(text));
-                if (writeNullTermination) w.Write(getNullTerminatorFromEncoding(tagEncoding));
+                Encoding localEncoding = (isExplicitLatin1Encoding ? Utils.Latin1Encoding : tagEncoding);
+                if (writeTextEncoding) w.Write(encodeID3v2CharEncoding(localEncoding)); // Encoding according to ID3v2 specs
+                w.Write(getBomFromEncoding(localEncoding));
+                w.Write(localEncoding.GetBytes(text));
+                if (writeNullTermination) w.Write(getNullTerminatorFromEncoding(localEncoding));
             }
 
 
@@ -1652,7 +1716,7 @@ namespace ATL.AudioData.IO
 
             if (tagHeader.UsesUnsynchronisation && !isInsideUnsynch)
             {
-                s = new MemoryStream(Size);
+                s = new MemoryStream((int)Size);
                 w = new BinaryWriter(s, usedTagEncoding);
                 frameOffset = writer.BaseStream.Position;
             }
@@ -1854,7 +1918,7 @@ namespace ATL.AudioData.IO
             }
 
             if (!result.Found) source.Position = initialPos;
-            else  result.Size = (int)(source.Position - initialPos);
+            else result.Size = (int)(source.Position - initialPos);
 
             return result;
         }
@@ -2012,6 +2076,5 @@ namespace ATL.AudioData.IO
             else if (encoding.Equals(Encoding.UTF8)) return NULLTERMINATOR;
             else return NULLTERMINATOR; // Default = ISO-8859-1 / ISO Latin-1
         }
-
     }
 }

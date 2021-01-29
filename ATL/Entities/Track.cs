@@ -12,19 +12,23 @@ namespace ATL
     /// </summary>
     public class Track
     {
+        private const string InMemoryPath = "In-memory";
+
         /// <summary>
         /// Basic constructor; does nothing else than instanciating the Track object
         /// </summary>
-		public Track() { }
+        public Track() { }
 
         /// <summary>
         /// Loads the file at the given path
         /// Only works with local paths; http, ftp and the like do not work.
         /// </summary>
-        /// <param name="Path">Path of the local file to be loaded</param>
-        public Track(string Path, IProgress<float> writeProgress = null, bool load = true)
+        /// <param name="path">Path of the local file to be loaded</param>
+        /// <param name="writeProgress">Callback that will be called multiple times when saving changes, as saving progresses (default : null = no callback)</param>
+        /// <param name="load">True to load the file when running this constructor (default : true)</param>
+        public Track(string path, IProgress<float> writeProgress = null, bool load = true)
         {
-            this.Path = Path;
+            this.Path = path;
             stream = null;
             this.writeProgress = writeProgress;
             if (load) Update();
@@ -34,10 +38,11 @@ namespace ATL
         /// Loads the file at the given path
         /// Only works with local paths; http, ftp and the like do not work.
         /// </summary>
-        /// <param name="Path">Path of the local file to be loaded</param>
-        public Track(string Path, bool load)
+        /// <param name="path">Path of the local file to be loaded</param>
+        /// <param name="load">True to load the file when running this constructor (default : true)</param>
+        public Track(string path, bool load)
         {
-            this.Path = Path;
+            this.Path = path;
             stream = null;
             this.writeProgress = null;
             if (load) Update();
@@ -48,11 +53,12 @@ namespace ATL
         /// </summary>
         /// <param name="stream">Stream containing the raw data to be loaded</param>
         /// <param name="mimeType">MIME-type (e.g. "audio/mp3") or file extension (e.g. ".mp3") of the content</param>
+        /// <param name="writeProgress">Callback that will be called multiple times when saving changes, as saving progresses (default : null = no callback)</param>
         public Track(Stream stream, string mimeType, IProgress<float> writeProgress = null)
         {
             this.stream = stream;
             this.mimeType = mimeType;
-            Path = "In-memory";
+            Path = InMemoryPath;
             this.writeProgress = writeProgress;
             Update();
         }
@@ -107,6 +113,10 @@ namespace ATL
         /// Publisher
         /// </summary>
         public string Publisher { get; set; }
+        /// <summary>
+        /// Publishing date
+        /// </summary>
+        public DateTime PublishingDate { get; set; }
         /// <summary>
         /// Album Artist
         /// </summary>
@@ -187,6 +197,14 @@ namespace ATL
         /// 3=Sequenced with codec or hardware-dependent sound library
         /// </summary>
 		public int CodecFamily { get; set; }
+        /// <summary>
+        /// Format of the audio data
+        /// </summary>
+        public Format AudioFormat { get; set; }
+        /// <summary>
+        /// Format of the tagging systems
+        /// </summary>
+        public IList<Format> MetadataFormats { get; set; }
         /// <summary>
         /// Duration (seconds)
         /// </summary>
@@ -291,8 +309,10 @@ namespace ATL
                 initialEmbeddedPictures = null;
             }
 
+            MetadataFormats = new List<Format>(fileIO.MetadataFormats);
+
             Title = fileIO.Title;
-            if (Settings.UseFileNameWhenNoTitle && (null == Title || "" == Title))
+            if (Settings.UseFileNameWhenNoTitle && (null == Title || "" == Title) && Path != InMemoryPath)
             {
                 Title = System.IO.Path.GetFileNameWithoutExtension(Path);
             }
@@ -305,6 +325,7 @@ namespace ATL
             Description = Utils.ProtectValue(fileIO.GeneralDescription);
             Copyright = Utils.ProtectValue(fileIO.Copyright);
             Publisher = Utils.ProtectValue(fileIO.Publisher);
+            PublishingDate = fileIO.PublishingDate;
             AlbumArtist = Utils.ProtectValue(fileIO.AlbumArtist);
             Conductor = Utils.ProtectValue(fileIO.Conductor);
             Date = fileIO.Date;
@@ -318,6 +339,8 @@ namespace ATL
 
             Bitrate = fileIO.IntBitRate;
             CodecFamily = fileIO.CodecFamily;
+            AudioFormat = fileIO.AudioFormat;
+
             DurationMs = fileIO.Duration;
             Popularity = fileIO.Popularity;
             IsVBR = fileIO.IsVBR;
@@ -348,6 +371,7 @@ namespace ATL
             result.Rating = (Popularity * 5).ToString();
             result.Copyright = Copyright;
             result.Publisher = Publisher;
+            if (!PublishingDate.Equals(DateTime.MinValue)) result.PublishingDate = TrackUtils.FormatISOTimestamp(PublishingDate);
             result.AlbumArtist = AlbumArtist;
             result.Conductor = Conductor;
             if (!Date.Equals(DateTime.MinValue)) result.RecordingDate = TrackUtils.FormatISOTimestamp(Date);
@@ -439,13 +463,18 @@ namespace ATL
 
             return result;
         }
+
         /// <summary>
-        /// Save current Track to disk
+        /// Save Track to disk
         /// </summary>
-        public void Save()
+        /// <returns>True if save succeeds; false if it fails
+        /// NB : Failure reason is saved to the ATL log</returns>
+        public bool Save()
         {
-            fileIO.Save(toTagData());
-            Update();
+            bool result = fileIO.Save(toTagData());
+            if (result) Update();
+
+            return result;
         }
 
         /// <summary>
@@ -453,10 +482,14 @@ namespace ATL
         /// </summary>
         /// <param name="tagType">Tag type to remove (see MetaDataIOFactory.TAG_XX values)</param>
         /// <see cref="MetaDataIOFactory"/>
-        public void Remove(int tagType = MetaDataIOFactory.TAG_ANY)
+        /// <returns>True if removal succeeds; false if it fails
+        /// NB : Failure reason is saved to the ATL log</returns>
+        public bool Remove(int tagType = MetaDataIOFactory.TAG_ANY)
         {
-            fileIO.Remove(tagType);
-            Update();
+            bool result = fileIO.Remove(tagType);
+            if (result) Update();
+
+            return result;
         }
     }
 }

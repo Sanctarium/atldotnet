@@ -18,17 +18,19 @@ namespace ATL.benchmark
 
             //BenchmarkRunner.Run<Misc>();
 
-            //readAt(@"E:\Dev\Source\Repos\atldotnet\ATL.test\Resources\AAC\chapters_QT.m4v");
+            //readAt(@"E:\Dev\Source\Repos\atldotnet\ATL.test\Resources\MP4\chapters_QT.m4v");
 
             //compareInfo(@"E:\Music\VGM");
 
             //browseFor(@"E:\Music\", "*.mp3");
 
-            writeAt(@"E:\temp\m4a-mp4\sample.original.edited - Copie.mp4");
+            writeAt(@"E:\temp\mp3\id3v1_only.mp3");
 
-            //readAt(@"E:\temp\m4a-mp4\sample.original - Copie.mp4");
+            //info(@"E:\temp\wav\74\empty_tagged_audacity.wav");
 
-            //readAt(@"E:\temp\wav\loop_points.wav");
+            //browseForMultithread(@"E:\temp\m4a-mp4\issue 70", "*.*", 4);
+
+            //readAt(@"E:\temp\caf");
 
             //displayVersionInfo();
         }
@@ -45,7 +47,7 @@ namespace ATL.benchmark
                 Track t = new Track(filePath);
                 //t.GetEmbeddedPicture(useOldImplementation, false);
 
-                                Console.WriteLine(t.Title);
+                Console.WriteLine(t.Title);
             }
             else if (Directory.Exists(filePath))
             {
@@ -71,6 +73,16 @@ namespace ATL.benchmark
             Console.ReadLine();
         }
 
+        static private void browseForMultithread(string rootDir, string filter, int threads)
+        {
+            FileFinder ff = new FileFinder();
+
+            ff.FF_WriteAllInFolder(rootDir, filter, threads);
+
+            Console.WriteLine(">>> BROWSE : END");
+            Console.ReadLine();
+        }
+
         static private void writeOnTmpResource(String fileName)
         {
             Writing w = new Writing();
@@ -81,12 +93,37 @@ namespace ATL.benchmark
             Console.ReadLine();
         }
 
-        static private void writeAt(String fileName)
+        static private void writeAt(String filePath)
+        {
+            string testFileLocation = TestUtils.GenerateTempTestFile(filePath);
+            try
+            {
+                //Settings.ForceDiskIO = true;
+                Settings.FileBufferSize = 2 * 1024 * 1024;
+//                Settings.ID3v2_tagSubVersion = 3;
+
+                ConsoleLogger logger = new ConsoleLogger();
+                Console.WriteLine(">>> WRITE : BEGIN @ " + testFileLocation);
+
+                Writing w = new Writing();
+                w.performWrite(testFileLocation);
+                Console.WriteLine(">>> WRITE : END");
+
+                Console.ReadLine();
+            }
+            finally
+            {
+                File.Delete(testFileLocation);
+            }
+        }
+
+        static private void info(String filePath)
         {
             ConsoleLogger logger = new ConsoleLogger();
+            Console.WriteLine(">>> INFO : BEGIN @ " + filePath);
 
-            Writing w = new Writing();
-            w.performWrite(fileName);
+            AudioData.IAudioDataIO dataIO = ATL.AudioData.AudioDataIOFactory.GetInstance().GetFromPath(filePath);
+            
             Console.WriteLine(">>> WRITE : END");
 
             Console.ReadLine();
@@ -98,4 +135,8 @@ namespace ATL.benchmark
             Console.ReadLine();
         }
     }
+
+
+
 }
+

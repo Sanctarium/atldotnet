@@ -1,5 +1,6 @@
 using Commons;
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace ATL.AudioData.IO
@@ -9,15 +10,28 @@ namespace ATL.AudioData.IO
     /// </summary>
 	public class ID3v1 : MetaDataIO
 	{
-		public const int MAX_MUSIC_GENRES = 148;        // Max. number of music genres
-        public const int DEFAULT_GENRE = 255;               // Index for default genre
+		/// <summary>
+		/// Max. number of music genres
+		/// </summary>
+		public const int MAX_MUSIC_GENRES = 192;
 
-        public const int ID3V1_TAG_SIZE = 128;
-        public const string ID3V1_ID = "TAG";
+		/// <summary>
+		/// Standard size of an ID3v1 tag
+		/// </summary>
+		public const int ID3V1_TAG_SIZE = 128;
+		/// <summary>
+		/// Magic number of an ID3v1 tag
+		/// </summary>
+		public const string ID3V1_ID = "TAG";
 
-		// Used with VersionID property
-		public const byte TAG_VERSION_1_0 = 1;                // Index for ID3v1.0 tag
-		public const byte TAG_VERSION_1_1 = 2;                // Index for ID3v1.1 tag
+		/// <summary>
+		/// Index for ID3v1.0 tag
+		/// </summary>
+		private const byte TAG_VERSION_1_0 = 1;
+		/// <summary>
+		/// Index for ID3v1.1 tag
+		/// </summary>
+		private const byte TAG_VERSION_1_1 = 2;
 
 		#region music genres
 		public static readonly string[] MusicGenre = new string[MAX_MUSIC_GENRES] 		// Genre names
@@ -170,52 +184,136 @@ namespace ATL.AudioData.IO
 			"Trash Metal",
 			"Anime",
 			"JPop",
-			"Synthpop"
+			"Synthpop",
+            "Abstract", 
+            "Art Rock",
+            "Baroque", 
+            "Bhangra", 
+            "Big Beat",
+            "Breakbeat", 
+            "Chillout",
+            "Downtempo", 
+            "Dub", 
+            "EBM", 
+            "Eclectic",
+            "Electro", 
+            "Electroclash", 
+            "Emo", 
+            "Experimental",
+            "Garage",
+            "Global", 
+            "IDM", 
+            "Illbient", 
+            "Industro-Goth", 
+            "Jam Band",
+            "Krautrock",
+            "Leftfield", 
+            "Lounge", 
+            "Math Rock", 
+            "New Romantic",
+            "Nu-Breakz", 
+            "Post-Punk", 
+            "Post-Rock", 
+            "Psytrance", 
+            "Shoegaze",
+            "Space Rock",
+            "Trop Rock",
+            "World Music", 
+            "Neoclassical",
+            "Audiobook", 
+            "Audio Theatre", 
+            "Neue Deutsche Welle", 
+            "Podcast",
+            "Indie Rock", 
+            "G-Funk", 
+            "Dubstep", 
+            "Garage Rock", 
+            "Psybient"
 		};
 		#endregion
-			
+
+
+		// --------------- OPTIONAL INFORMATIVE OVERRIDES
+
+		/// <inheritdoc/>
+		public override IList<Format> MetadataFormats
+		{
+			get
+			{
+				Format format = new Format(MetaDataIOFactory.GetInstance().getFormatsFromPath("id3v1")[0]);
+				format.Name = format.Name + "." + (tagVersion - 1);
+				format.ID += tagVersion - 1;
+				return new List<Format>(new Format[1] { format });
+			}
+		}
+
+
+		// --------------- MANDATORY INFORMATIVE OVERRIDES
+
+		/// <inheritdoc/>
+		protected override int getDefaultTagOffset()
+		{
+			return TO_EOF;
+		}
+
+		/// <inheritdoc/>
+		protected override int getImplementedTagType()
+		{
+			return MetaDataIOFactory.TAG_ID3V1;
+		}
+
+		/// <inheritdoc/>
+		protected override byte getFrameMapping(string zone, string ID, byte tagVersion)
+		{
+			throw new NotImplementedException();
+		}
+
+
 		// ********************* Auxiliary functions & voids ********************
 
-        private bool ReadTag(BufferedBinaryReader source)
+		private bool ReadTag(BufferedBinaryReader source)
         {
             bool result = false;
 
-            // Read tag
-            source.Seek(-ID3V1_TAG_SIZE, SeekOrigin.End);
+			if (source.Length >= ID3V1_TAG_SIZE)
+			{
+				// Read tag
+				source.Seek(-ID3V1_TAG_SIZE, SeekOrigin.End);
 
-            // ID3v1 tags are C-String(null-terminated)-based tags encoded in ASCII
-            byte[] data = new byte[ID3V1_TAG_SIZE];
-            source.Read(data, 0, ID3V1_TAG_SIZE);
+				// ID3v1 tags are C-String(null-terminated)-based tags encoded in ASCII
+				byte[] data = new byte[ID3V1_TAG_SIZE];
+				source.Read(data, 0, ID3V1_TAG_SIZE);
 
-            string header = Utils.Latin1Encoding.GetString(data, 0, 3);
-            if (header.Equals(ID3V1_ID))
-            {
-                byte[] endComment = new byte[2];
-                structureHelper.AddZone(source.Position-ID3V1_TAG_SIZE, ID3V1_TAG_SIZE);
+				string header = Utils.Latin1Encoding.GetString(data, 0, 3);
+				if (header.Equals(ID3V1_ID))
+				{
+					byte[] endComment = new byte[2];
+					structureHelper.AddZone(source.Position - ID3V1_TAG_SIZE, ID3V1_TAG_SIZE);
 
-                tagData.Title = Utils.Latin1Encoding.GetString(data, 3, 30).Replace("\0", "");
-                tagData.Artist = Utils.Latin1Encoding.GetString(data, 33, 30).Replace("\0", "");
-                tagData.Album = Utils.Latin1Encoding.GetString(data, 63, 30).Replace("\0", "");
-                tagData.RecordingYear = Utils.Latin1Encoding.GetString(data, 93, 4).Replace("\0", "");
-                tagData.Comment = Utils.Latin1Encoding.GetString(data, 97, 28).Replace("\0", "");
+					tagData.Title = Utils.Latin1Encoding.GetString(data, 3, 30).Replace("\0", "");
+					tagData.Artist = Utils.Latin1Encoding.GetString(data, 33, 30).Replace("\0", "");
+					tagData.Album = Utils.Latin1Encoding.GetString(data, 63, 30).Replace("\0", "");
+					tagData.RecordingYear = Utils.Latin1Encoding.GetString(data, 93, 4).Replace("\0", "");
+					tagData.Comment = Utils.Latin1Encoding.GetString(data, 97, 28).Replace("\0", "");
 
-                Array.Copy(data, 125, endComment, 0, 2);
-                tagVersion = GetTagVersion(endComment);
+					Array.Copy(data, 125, endComment, 0, 2);
+					tagVersion = GetTagVersion(endComment);
 
-                // Fill properties using tag data
-                if (TAG_VERSION_1_0 == tagVersion)
-                {
-                    tagData.Comment = tagData.Comment + Utils.Latin1Encoding.GetString(endComment, 0, 2).Replace("\0", "");
-                }
-                else
-                {
-                    tagData.TrackNumber = endComment[1].ToString();
-                }
+					// Fill properties using tag data
+					if (TAG_VERSION_1_0 == tagVersion)
+					{
+						tagData.Comment = tagData.Comment + Utils.Latin1Encoding.GetString(endComment, 0, 2).Replace("\0", "");
+					}
+					else
+					{
+						tagData.TrackNumber = endComment[1].ToString();
+					}
 
-                tagData.Genre = (data[127] < MAX_MUSIC_GENRES) ? MusicGenre[data[127]] : "";
+					tagData.Genre = (data[127] < MAX_MUSIC_GENRES) ? MusicGenre[data[127]] : "";
 
-                result = true;
-            }
+					result = true;
+				}
+			}
 
             return result;
 		}
@@ -230,6 +328,9 @@ namespace ATL.AudioData.IO
 
 			return result;
 		}
+
+
+
 
 		// ********************** Public functions & voids **********************
 
@@ -285,12 +386,12 @@ namespace ATL.AudioData.IO
             w.Write('\0');
             w.Write((byte)Math.Min(TrackUtils.ExtractTrackNumber(tag.TrackNumber),Byte.MaxValue));
 
-            byte genre = 0;
+            byte genre = byte.MaxValue;
             if (tag.Genre != null)
             {
                 for (byte i = 0; i < MAX_MUSIC_GENRES; i++)
                 {
-                    if (tag.Genre.ToUpper().Equals(MusicGenre[i].ToUpper()))
+                    if (tag.Genre.Equals(MusicGenre[i], StringComparison.OrdinalIgnoreCase))
                     {
                         genre = i;
                         break;
@@ -300,21 +401,6 @@ namespace ATL.AudioData.IO
             w.Write(genre);
 
             return 7;
-        }
-
-        protected override int getDefaultTagOffset()
-        {
-            return TO_EOF;
-        }
-
-        protected override int getImplementedTagType()
-        {
-            return MetaDataIOFactory.TAG_ID3V1;
-        }
-
-        protected override byte getFrameMapping(string zone, string ID, byte tagVersion)
-        {
-            throw new NotImplementedException();
         }
     }
 }

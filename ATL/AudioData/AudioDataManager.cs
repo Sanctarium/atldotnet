@@ -124,10 +124,22 @@ namespace ATL.AudioData
         {
             IList<int> result = new List<int>();
 
-            if (hasMeta(MetaDataIOFactory.TAG_ID3V1)) result.Add(MetaDataIOFactory.TAG_ID3V1);
-            if (hasMeta(MetaDataIOFactory.TAG_ID3V2)) result.Add(MetaDataIOFactory.TAG_ID3V2);
-            if (hasMeta(MetaDataIOFactory.TAG_APE)) result.Add(MetaDataIOFactory.TAG_APE);
-            if (hasMeta(MetaDataIOFactory.TAG_NATIVE)) result.Add(MetaDataIOFactory.TAG_NATIVE);
+            foreach(int tagType in Enum.GetValues(typeof(MetaDataIOFactory.TagType)))
+            {
+                if (hasMeta(tagType)) result.Add(tagType);
+            }
+
+            return result;
+        }
+
+        public IList<int> getSupportedMetas()
+        {
+            IList<int> result = new List<int>();
+
+            foreach (int tagType in Enum.GetValues(typeof(MetaDataIOFactory.TagType)))
+            {
+                if (audioDataIO.IsMetaSupported(tagType)) result.Add(tagType);
+            }
 
             return result;
         }
@@ -251,8 +263,8 @@ namespace ATL.AudioData
                 }
                 catch (Exception e)
                 {
-                    System.Console.WriteLine(e.Message);
-                    System.Console.WriteLine(e.StackTrace);
+                    Console.WriteLine(e.Message);
+                    Console.WriteLine(e.StackTrace);
                     LogDelegator.GetLogDelegate()(Log.LV_ERROR, e.Message);
                     result = false;
                 }

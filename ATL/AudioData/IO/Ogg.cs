@@ -296,15 +296,20 @@ namespace ATL.AudioData.IO
             info.Reset();
         }
 
-        public Ogg(string filePath)
+        public Ogg(string filePath, Format format)
         {
             this.filePath = filePath;
+            AudioFormat = format;
             resetData();
         }
 
 
         // ---------- INFORMATIVE INTERFACE IMPLEMENTATIONS & MANDATORY OVERRIDES
 
+        public Format AudioFormat
+        {
+            get;
+        }
         public int CodecFamily
         {
             get { return AudioDataIOFactory.CF_LOSSY; }
@@ -316,6 +321,17 @@ namespace ATL.AudioData.IO
             get
             {
                 return ((IMetaDataIO)vorbisTag).Exists;
+            }
+        }
+        /// <inheritdoc/>
+        public IList<Format> MetadataFormats
+        {
+            get
+            {
+                Format nativeFormat = new Format(MetaDataIOFactory.GetInstance().getFormatsFromPath("native")[0]);
+                nativeFormat.Name = "Native / Vorbis (OGG)";
+                nativeFormat.ID += AudioFormat.ID;
+                return new List<Format>(new Format[1] { nativeFormat });
             }
         }
 
@@ -463,6 +479,14 @@ namespace ATL.AudioData.IO
             }
         }
 
+        public DateTime PublishingDate
+        {
+            get
+            {
+                return ((IMetaDataIO)vorbisTag).PublishingDate;
+            }
+        }
+
         public string AlbumArtist
         {
             get
@@ -495,7 +519,7 @@ namespace ATL.AudioData.IO
             }
         }
 
-        public int Size
+        public long Size
         {
             get
             {
@@ -1054,7 +1078,7 @@ namespace ATL.AudioData.IO
 //                if (writeProgress != null) writeProgress.Report(++currentProgress / 4);
 
 
-                /// Insert the virtual paged stream into the actual file
+                // Insert the virtual paged stream into the actual file
                 long oldHeadersSize = info.SetupHeaderEnd - info.CommentHeaderStart;
                 long newHeadersSize = memStream.Length;
 

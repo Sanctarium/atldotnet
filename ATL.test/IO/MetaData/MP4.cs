@@ -60,8 +60,8 @@ namespace ATL.test.IO.MetaData
     {
         public MP4()
         {
-            emptyFile = "AAC/empty.m4a"; // Has empty udta/meta tags
-            notEmptyFile = "AAC/mp4.m4a";
+            emptyFile = "MP4/empty.m4a"; // Has empty udta/meta tags
+            notEmptyFile = "MP4/mp4.m4a";
             tagType = MetaDataIOFactory.TAG_NATIVE;
 
             // MP4 does not support leading zeroes
@@ -97,7 +97,7 @@ namespace ATL.test.IO.MetaData
             readExistingTagsOnFile(theFile, 1);
 
 
-            location = TestUtils.GetResourceLocationRoot() + "AAC/mp4_date_in_©day.m4a";
+            location = TestUtils.GetResourceLocationRoot() + "MP4/mp4_date_in_©day.m4a";
             theFile = new AudioDataManager(ATL.AudioData.AudioDataIOFactory.GetInstance().GetFromPath(location));
             readExistingTagsOnFile(theFile, 1);
         }
@@ -111,7 +111,7 @@ namespace ATL.test.IO.MetaData
         [TestMethod]
         public void TagIO_RW_MP4_Empty_no_udta()
         {
-            test_RW_Empty("AAC/no_udta.m4a", true, false, false); // ATL leaves an empty udta/meta structure, which is more "standard" than wiping the entire udta branch
+            test_RW_Empty("MP4/no_udta.m4a", true, false, false); // ATL leaves an empty udta/meta structure, which is more "standard" than wiping the entire udta branch
         }
 
         [TestMethod]
@@ -133,10 +133,39 @@ namespace ATL.test.IO.MetaData
             PictureInfo picInfo = PictureInfo.fromBinaryData(data, PictureInfo.PIC_TYPE.Generic, MetaDataIOFactory.TAG_ANY, 14);
             theTag.Pictures.Add(picInfo);
 
+            theTag.Chapters = theFile.NativeTag.Chapters;
+            theTag.Chapters.Add(new ChapterInfo(3000, "Chapter 2"));
 
             // Add the new tag and check that it has been indeed added with all the correct information
             Assert.IsTrue(theFile.UpdateTagInFile(theTag, MetaDataIOFactory.TAG_NATIVE));
 
+
+            try
+            {
+                // Read Quicktime chapters specifically
+                ATL.Settings.MP4_readChaptersExclusive = 1;
+                Assert.IsTrue(theFile.ReadFromFile(true, true));
+                Assert.AreEqual(2, theFile.NativeTag.Chapters.Count);
+                Assert.AreEqual((uint)0, theFile.NativeTag.Chapters[0].StartTime); // 1st Quicktime chapter can't start at position > 0
+                Assert.AreEqual("aa父bb", theFile.NativeTag.Chapters[0].Title);
+                Assert.AreEqual((uint)2945, theFile.NativeTag.Chapters[1].StartTime); // Approximate due to the way timecodes are formatted in the MP4 format
+                Assert.AreEqual("Chapter 2", theFile.NativeTag.Chapters[1].Title);
+
+                // Read Nero chapters specifically
+                ATL.Settings.MP4_readChaptersExclusive = 2;
+                Assert.IsTrue(theFile.ReadFromFile(true, true));
+                Assert.AreEqual(2, theFile.NativeTag.Chapters.Count);
+                Assert.AreEqual((uint)55, theFile.NativeTag.Chapters[0].StartTime);
+                Assert.AreEqual("aa父bb", theFile.NativeTag.Chapters[0].Title);
+                Assert.AreEqual((uint)3000, theFile.NativeTag.Chapters[1].StartTime);
+                Assert.AreEqual("Chapter 2", theFile.NativeTag.Chapters[1].Title);
+            } finally
+            {
+                ATL.Settings.MP4_readChaptersExclusive = 0;
+            }
+
+
+            // Read the rest supported fields
             readExistingTagsOnFile(theFile, 2);
 
             // Additional supported field
@@ -189,7 +218,7 @@ namespace ATL.test.IO.MetaData
                         Assert.IsTrue(originalMD5.Equals(testMD5));
             */
             // Get rid of the working copy
-            File.Delete(testFileLocation);
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
         }
 
         [TestMethod]
@@ -312,7 +341,7 @@ namespace ATL.test.IO.MetaData
 
 
             // Get rid of the working copy
-            File.Delete(testFileLocation);
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
         }
 
         [TestMethod]
@@ -320,11 +349,11 @@ namespace ATL.test.IO.MetaData
         {
             ConsoleLogger log = new ConsoleLogger();
 
-            Settings.MP4_createQuicktimeChapters = false;
+            ATL.Settings.MP4_createQuicktimeChapters = false;
             try
             {
                 // Source : MP3 with existing tag incl. chapters
-                String testFileLocation = TestUtils.CopyAsTempTestFile("AAC/chapters_NERO.mp4");
+                String testFileLocation = TestUtils.CopyAsTempTestFile("MP4/chapters_NERO.mp4");
                 AudioDataManager theFile = new AudioDataManager(ATL.AudioData.AudioDataIOFactory.GetInstance().GetFromPath(testFileLocation));
 
                 // Check if the two fields are indeed accessible
@@ -421,11 +450,11 @@ namespace ATL.test.IO.MetaData
 
 
                 // Get rid of the working copy
-                File.Delete(testFileLocation);
+                if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
             }
             finally
             {
-                Settings.MP4_createQuicktimeChapters = true;
+                ATL.Settings.MP4_createQuicktimeChapters = true;
             }
         }
 
@@ -434,11 +463,11 @@ namespace ATL.test.IO.MetaData
         {
             ConsoleLogger log = new ConsoleLogger();
 
-            Settings.MP4_createQuicktimeChapters = false;
+            ATL.Settings.MP4_createQuicktimeChapters = false;
             try
             {
                 // Source : file without 'chpl' atom
-                String testFileLocation = TestUtils.CopyAsTempTestFile("AAC/empty.m4a");
+                String testFileLocation = TestUtils.CopyAsTempTestFile("MP4/empty.m4a");
                 AudioDataManager theFile = new AudioDataManager(ATL.AudioData.AudioDataIOFactory.GetInstance().GetFromPath(testFileLocation));
 
                 Assert.IsTrue(theFile.ReadFromFile());
@@ -494,11 +523,11 @@ namespace ATL.test.IO.MetaData
                 Assert.AreEqual(2, found);
 
                 // Get rid of the working copy
-                File.Delete(testFileLocation);
+                if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
             }
             finally
             {
-                Settings.MP4_createQuicktimeChapters = true;
+                ATL.Settings.MP4_createQuicktimeChapters = true;
             }
         }
 
@@ -508,7 +537,7 @@ namespace ATL.test.IO.MetaData
             ConsoleLogger log = new ConsoleLogger();
 
             // Source : file without 'chpl' atom
-            String testFileLocation = TestUtils.CopyAsTempTestFile("AAC/chapters_NERO.mp4");
+            String testFileLocation = TestUtils.CopyAsTempTestFile("MP4/chapters_NERO.mp4");
             AudioDataManager theFile = new AudioDataManager(ATL.AudioData.AudioDataIOFactory.GetInstance().GetFromPath(testFileLocation));
 
             // Check if the two fields are indeed accessible
@@ -531,7 +560,7 @@ namespace ATL.test.IO.MetaData
             Assert.AreEqual("test_meta_atom", theFile.NativeTag.Title);
 
             // Get rid of the working copy
-            File.Delete(testFileLocation);
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
         }
 
         [TestMethod]
@@ -539,11 +568,11 @@ namespace ATL.test.IO.MetaData
         {
             ConsoleLogger log = new ConsoleLogger();
 
-            Settings.MP4_createNeroChapters = false;
+            ATL.Settings.MP4_createNeroChapters = false;
             try
             {
                 // Source : MP3 with existing tag incl. chapters
-                String testFileLocation = TestUtils.CopyAsTempTestFile("AAC/chapters_QT.m4v");
+                String testFileLocation = TestUtils.CopyAsTempTestFile("MP4/chapters_QT.m4v");
                 AudioDataManager theFile = new AudioDataManager(ATL.AudioData.AudioDataIOFactory.GetInstance().GetFromPath(testFileLocation));
 
                 // Check if the two fields are indeed accessible
@@ -555,24 +584,16 @@ namespace ATL.test.IO.MetaData
 
                 Dictionary<uint, ChapterInfo> expectedChaps = new Dictionary<uint, ChapterInfo>();
 
-                ChapterInfo ch = new ChapterInfo();
-                ch.StartTime = 0;
-                ch.Title = "Chapter One";
+                ChapterInfo ch = new ChapterInfo(0, "Chapter One");
                 expectedChaps.Add(ch.StartTime, ch);
 
-                ch = new ChapterInfo();
-                ch.StartTime = 1139;
-                ch.Title = "Chapter 2";
+                ch = new ChapterInfo(1139, "Chapter 2");
                 expectedChaps.Add(ch.StartTime, ch);
 
-                ch = new ChapterInfo();
-                ch.StartTime = 2728;
-                ch.Title = "Chapter 003";
+                ch = new ChapterInfo(2728, "Chapter 003");
                 expectedChaps.Add(ch.StartTime, ch);
 
-                ch = new ChapterInfo();
-                ch.StartTime = 3269;
-                ch.Title = "Chapter 四";
+                ch = new ChapterInfo(3269, "Chapter 四");
                 expectedChaps.Add(ch.StartTime, ch);
 
                 int found = 0;
@@ -597,17 +618,11 @@ namespace ATL.test.IO.MetaData
                 theTag.Chapters = new List<ChapterInfo>();
                 expectedChaps.Clear();
 
-                ch = new ChapterInfo();
-                ch.StartTime = 0;
-                ch.Title = "aaa";
-
+                ch = new ChapterInfo(0, "aaa");
                 theTag.Chapters.Add(ch);
                 expectedChaps.Add(ch.StartTime, ch);
 
-                ch = new ChapterInfo();
-                ch.StartTime = 1230;
-                ch.Title = "aaa0";
-
+                ch = new ChapterInfo(1230, "aaa0四");
                 theTag.Chapters.Add(ch);
                 expectedChaps.Add(ch.StartTime, ch);
 
@@ -638,11 +653,11 @@ namespace ATL.test.IO.MetaData
                 Assert.AreEqual(2, found);
 
                 // Get rid of the working copy
-                File.Delete(testFileLocation);
+                if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
             }
             finally
             {
-                Settings.MP4_createNeroChapters = true;
+                ATL.Settings.MP4_createNeroChapters = true;
             }
         }
 
@@ -651,11 +666,11 @@ namespace ATL.test.IO.MetaData
         {
             ConsoleLogger log = new ConsoleLogger();
 
-            Settings.MP4_createNeroChapters = false;
+            ATL.Settings.MP4_createNeroChapters = false;
             try
             {
                 // Source : file without 'chpl' atom
-                String testFileLocation = TestUtils.CopyAsTempTestFile("AAC/empty.m4a");
+                String testFileLocation = TestUtils.CopyAsTempTestFile("MP4/empty.m4a");
                 AudioDataManager theFile = new AudioDataManager(ATL.AudioData.AudioDataIOFactory.GetInstance().GetFromPath(testFileLocation));
 
                 Assert.IsTrue(theFile.ReadFromFile());
@@ -711,11 +726,11 @@ namespace ATL.test.IO.MetaData
                 Assert.AreEqual(2, found);
 
                 // Get rid of the working copy
-                File.Delete(testFileLocation);
+                if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
             }
             finally
             {
-                Settings.MP4_createNeroChapters = true;
+                ATL.Settings.MP4_createNeroChapters = true;
             }
         }
 
@@ -724,7 +739,7 @@ namespace ATL.test.IO.MetaData
         {
             ConsoleLogger log = new ConsoleLogger();
 
-            String testFileLocation = TestUtils.CopyAsTempTestFile("AAC/lyrics.m4a");
+            String testFileLocation = TestUtils.CopyAsTempTestFile("MP4/lyrics.m4a");
             AudioDataManager theFile = new AudioDataManager(ATL.AudioData.AudioDataIOFactory.GetInstance().GetFromPath(testFileLocation));
 
             // Read
@@ -745,7 +760,7 @@ namespace ATL.test.IO.MetaData
             Assert.AreEqual(theTag.Lyrics.UnsynchronizedLyrics, theFile.NativeTag.Lyrics.UnsynchronizedLyrics);
 
             // Get rid of the working copy
-            File.Delete(testFileLocation);
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
         }
 
         [TestMethod]
@@ -781,7 +796,7 @@ namespace ATL.test.IO.MetaData
         {
             ConsoleLogger log = new ConsoleLogger();
 
-            String testFileLocation = TestUtils.CopyAsTempTestFile("AAC/xtraField.m4a");
+            String testFileLocation = TestUtils.CopyAsTempTestFile("MP4/xtraField.m4a");
             AudioDataManager theFile = new AudioDataManager(ATL.AudioData.AudioDataIOFactory.GetInstance().GetFromPath(testFileLocation));
 
             // Read
@@ -812,7 +827,7 @@ namespace ATL.test.IO.MetaData
             Assert.AreEqual("editor", theFile.NativeTag.AdditionalFields["WM/Publisher"]);
 
             // Get rid of the working copy
-            File.Delete(testFileLocation);
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
         }
 
         [TestMethod]

@@ -27,6 +27,7 @@ namespace ATL.AudioData
         /// <param name="path">Path of the file to be parsed</param>
         /// <param name="readEmbeddedPictures">Embedded pictures will be read if true; ignored if false</param>
         /// <param name="readAllMetaFrames">All metadata frames (including unmapped ones) will be read if true; ignored if false</param>
+        /// <param name="writeProgress">Object to use to signal writing progress (optional)</param>
         public AudioFileIO(string path, bool readEmbeddedPictures, bool readAllMetaFrames = false, IProgress<float> writeProgress = null)
         {
             byte alternate = 0;
@@ -54,8 +55,10 @@ namespace ATL.AudioData
         /// Constructor
         /// </summary>
         /// <param name="stream">Stream to access in-memory data to be parsed</param>
+        /// <param name="mimeType">Mime-type of the stream to process</param>
         /// <param name="readEmbeddedPictures">Embedded pictures will be read if true; ignored if false</param>
         /// <param name="readAllMetaFrames">All metadata frames (including unmapped ones) will be read if true; ignored if false</param>
+        /// <param name="writeProgress">Object to use to signal writing progress (optional)</param>
         public AudioFileIO(Stream stream, String mimeType, bool readEmbeddedPictures, bool readAllMetaFrames = false, IProgress<float> writeProgress = null)
         {
             byte alternate = 0;
@@ -80,35 +83,49 @@ namespace ATL.AudioData
             if (metaData is DummyTag && (0 == audioManager.getAvailableMetas().Count)) LogDelegator.GetLogDelegate()(Log.LV_WARNING, "Could not find any metadata");
         }
 
-        public void Save(TagData data)
+        public bool Save(TagData data)
         {
+            bool result = true;
             IList<int> availableMetas = audioManager.getAvailableMetas();
+            IList<int> supportedMetas = audioManager.getSupportedMetas();
 
-            if (0 == availableMetas.Count)
+            bool hasNothing = (0 == availableMetas.Count);
+            if (Settings.EnrichID3v1 && 1 == availableMetas.Count && availableMetas[0] == MetaDataIOFactory.TAG_ID3V1) hasNothing = true;
+
+            // File has no existing metadata
+            // => Try writing with one of the metas set in the Settings
+            if (hasNothing)
             {
                 foreach (int i in Settings.DefaultTagsWhenNoMetadata)
                 {
-                    availableMetas.Add(i);
+                    if (supportedMetas.Contains(i)) availableMetas.Add(i);
                 }
+
+                // File does not support any of the metas we want to write
+                // => Use the first supported meta available
+                if (0 == availableMetas.Count && supportedMetas.Count > 0) availableMetas.Add(supportedMetas[0]);
             }
 
             float written = 0;
             if (writeProgress != null) writeProgress.Report(written++ / availableMetas.Count);
             foreach (int meta in availableMetas)
             {
-                audioManager.UpdateTagInFile(data, meta);
+                result &= audioManager.UpdateTagInFile(data, meta);
                 if (writeProgress != null) writeProgress.Report(written++ / availableMetas.Count);
             }
+            return result;
         }
 
-        public void Remove(int tagType = MetaDataIOFactory.TAG_ANY)
+        public bool Remove(int tagType = MetaDataIOFactory.TAG_ANY)
         {
+            bool result = true;
             IList<int> metasToRemove;
 
             if (MetaDataIOFactory.TAG_ANY == tagType)
             {
                 metasToRemove = audioManager.getAvailableMetas();
-            } else
+            }
+            else
             {
                 metasToRemove = new List<int>() { tagType };
             }
@@ -117,9 +134,10 @@ namespace ATL.AudioData
             if (writeProgress != null) writeProgress.Report(written++ / metasToRemove.Count);
             foreach (int meta in metasToRemove)
             {
-                audioManager.RemoveTagFromFile(meta);
+                result &= audioManager.RemoveTagFromFile(meta);
                 if (writeProgress != null) writeProgress.Report(written++ / metasToRemove.Count);
             }
+            return result;
         }
 
         // ============ FIELD ACCESSORS
@@ -163,6 +181,13 @@ namespace ATL.AudioData
         public string Publisher
         {
             get { return processString(metaData.Publisher); }
+        }
+        /// <summary>
+        /// Publishing Date (DateTime.MinValue if field does not exist)
+        /// </summary>
+        public DateTime PublishingDate
+        {
+            get { return metaData.PublishingDate; }
         }
         /// <summary>
         /// Conductor
@@ -299,6 +324,13 @@ namespace ATL.AudioData
             get { return metaData.Popularity; }
         }
         /// <summary>
+        /// Format of audio data
+        /// </summary>
+        public Format AudioFormat
+        {
+            get { return audioData.AudioFormat; }
+        }
+        /// <summary>
         /// Codec family
         /// </summary>
         public int CodecFamily
@@ -319,8 +351,13 @@ namespace ATL.AudioData
         {
             get { return metaData.Exists; }
         }
+        /// <inheritdoc/>
+        public IList<Format> MetadataFormats
+        {
+            get { return metaData.MetadataFormats; }
+        }
         /// <summary>
-        /// Release date (DateTime.MinValue if field does not exist)
+        /// Recording date (DateTime.MinValue if field does not exist)
         /// </summary>
         public DateTime Date
         {
@@ -357,7 +394,7 @@ namespace ATL.AudioData
         /// <summary>
         /// Metadata size (bytes)
         /// </summary>
-        public int Size
+        public long Size
         {
             get { return metaData.Size; }
         }

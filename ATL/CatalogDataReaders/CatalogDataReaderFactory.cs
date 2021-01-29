@@ -14,17 +14,22 @@ namespace ATL.CatalogDataReaders
         // The instance of this factory
         private static CatalogDataReaderFactory theFactory = null;
 
+        private static readonly object _lockable = new object();
+
 
         public static CatalogDataReaderFactory GetInstance()
         {
-            if (null == theFactory)
+            lock (_lockable)
             {
-                theFactory = new CatalogDataReaderFactory();
-                theFactory.formatListByExt = new Dictionary<string, IList<Format>>();
+                if (null == theFactory)
+                {
+                    theFactory = new CatalogDataReaderFactory();
+                    theFactory.formatListByExt = new Dictionary<string, IList<Format>>();
 
-                Format tempFmt = new Format(CR_CUE, "CUE sheet");
-                tempFmt.AddExtension(".cue");
-                theFactory.addFormat(tempFmt);
+                    Format tempFmt = new Format(CR_CUE, "CUE sheet");
+                    tempFmt.AddExtension(".cue");
+                    theFactory.addFormat(tempFmt);
+                }
             }
 
             return theFactory;

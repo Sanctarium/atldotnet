@@ -8,16 +8,23 @@ namespace ATL
     /// </summary>
     public abstract class Factory
     {
-        public readonly Format UNKNOWN_FORMAT = new Format(-1, "Unknown");
+        /// <summary>
+        /// Represents an unknown generic format
+        /// </summary>
+        public static readonly Format UNKNOWN_FORMAT = new Format(-1, "Unknown");
 
-        // List of all formats supported by this kind of data reader
-        // They are indexed by file extension to speed up matching
+        /// <summary>
+        /// List of all formats supported by this kind of data reader
+        /// They are indexed by file extension to speed up matching
+        /// </summary>
         protected IDictionary<String, IList<ATL.Format>> formatListByExt;
 
-        // List of all formats supported by this kind of data reader
-        // They are indexed by MIME-type to speed up matching
+        /// <summary>
+        /// List of all formats supported by this kind of data reader 
+        /// They are indexed by MIME-type to speed up matching
+        /// </summary>
         protected IDictionary<String, IList<ATL.Format>> formatListByMime;
-   
+
 
 
         /// <summary>
@@ -65,10 +72,14 @@ namespace ATL
         /// <param name="path">Path of the file which format to recognize</param>
         /// <returns>List of the valid formats matching the extension of the given file, 
         /// or null if none recognized or the file does not exist</returns>
-        protected IList<ATL.Format> getFormatsFromPath(string path)
+        public IList<ATL.Format> getFormatsFromPath(string path)
         {
             IList<ATL.Format> result = null;
-            string extension = path.Substring(path.LastIndexOf('.'), path.Length - path.LastIndexOf('.')).ToLower();
+            string extension;
+            if (path.Contains("."))
+                extension = path.Substring(path.LastIndexOf('.'), path.Length - path.LastIndexOf('.')).ToLower();
+            else
+                extension = path;
 
             if (formatListByExt.ContainsKey(extension))
             {
@@ -88,7 +99,7 @@ namespace ATL
         /// <param name="mimeType">MIME-type to recognize</param>
         /// <returns>List of the valid formats matching the MIME-type of the given file, 
         /// or null if none recognized</returns>
-        protected IList<ATL.Format> getFormatsFromMimeType(string mimeType)
+        public IList<ATL.Format> getFormatsFromMimeType(string mimeType)
         {
             IList<ATL.Format> result = null;
             string mime = mimeType.ToLower();

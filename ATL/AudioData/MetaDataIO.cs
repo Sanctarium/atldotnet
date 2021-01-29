@@ -87,6 +87,20 @@ namespace ATL.AudioData.IO
         {
             get { return this.tagExists; }
         }
+        /// <inheritdoc/>
+        public virtual IList<Format> MetadataFormats
+        {
+            get
+            {
+                Format nativeFormat = new Format(MetaDataIOFactory.GetInstance().getFormatsFromPath("native")[0]);
+                if (this is IAudioDataIO iO)
+                {
+                    nativeFormat.Name = nativeFormat.Name + " / " + iO.AudioFormat.ShortName;
+                    nativeFormat.ID += iO.AudioFormat.ID;
+                }
+                return new List<Format>(new Format[1] { nativeFormat });
+            }
+        }
         /// <summary>
         /// Tag version
         /// </summary>
@@ -97,11 +111,11 @@ namespace ATL.AudioData.IO
         /// <summary>
         /// Total size of tag (in bytes)
         /// </summary>
-        public int Size
+        public long Size
         {
             get
             {
-                int result = 0;
+                long result = 0;
 
                 foreach (Zone zone in Zones) result += zone.Size;
 
@@ -232,7 +246,7 @@ namespace ATL.AudioData.IO
             }
         }
         /// <summary>
-        /// Release date (DateTime.MinValue if field does not exist)
+        /// Recording date (DateTime.MinValue if field does not exist)
         /// </summary>
         public DateTime Date
         {
@@ -261,6 +275,19 @@ namespace ATL.AudioData.IO
                     }
                     if (!success) result = DateTime.MinValue;
                 }
+                return result;
+            }
+        }
+        /// <summary>
+        /// Publishing date (DateTime.MinValue if field does not exist)
+        /// </summary>
+        public DateTime PublishingDate
+        {
+            get
+            {
+                DateTime result;
+                if (!DateTime.TryParse(tagData.PublishingDate, out result))
+                    result = DateTime.MinValue;
                 return result;
             }
         }
@@ -507,14 +534,43 @@ namespace ATL.AudioData.IO
 
         // ------ ABSTRACT METHODS -----------------------------------------------------
 
+        /// <summary>
+        /// Read metadata from the given source, using the given parameters
+        /// </summary>
+        /// <param name="source">Source to read metadata from</param>
+        /// <param name="readTagParams">Read parameters</param>
+        /// <returns>True if read has been successful, false if it failed</returns>
         abstract protected bool read(BinaryReader source, ReadTagParams readTagParams);
 
+        /// <summary>
+        /// Write the given zone's metadata using the given writer
+        /// </summary>
+        /// <param name="tag">Metadata to write</param>
+        /// <param name="w">Writer to use</param>
+        /// <param name="zone">Code of the zone to write</param>
+        /// <returns>Number of written fields; 0 if no field has been added not edited</returns>
         abstract protected int write(TagData tag, BinaryWriter w, string zone);
 
+        /// <summary>
+        /// Return the default offset of the metadata block
+        /// </summary>
+        /// <returns></returns>
         abstract protected int getDefaultTagOffset();
 
+        /// <summary>
+        /// Return the implemented tag type (see <see cref="MetaDataIOFactory"/> constants)
+        /// TODO make it return a <see cref="MetaDataIOFactory.TagType"/>
+        /// </summary>
+        /// <returns></returns>
         abstract protected int getImplementedTagType();
 
+        /// <summary>
+        /// Get the frame code (per <see cref="TagData"/> standards for the given field ID in the given zone and the given tag version
+        /// </summary>
+        /// <param name="zone">Code of the zone of the given field</param>
+        /// <param name="ID">ID of the field to get the mapping for</param>
+        /// <param name="tagVersion">Version the tagging system (e.g. 3 for ID3v2.3)</param>
+        /// <returns></returns>
         abstract protected byte getFrameMapping(string zone, string ID, byte tagVersion);
 
 
@@ -580,35 +636,35 @@ namespace ATL.AudioData.IO
 
         protected string formatBeforeWriting(byte frameType, TagData tag, IDictionary<byte, string> map)
         {
-            string value = "";
-            string total = "";
+            string value;
+            string total;
             switch (frameType)
             {
                 case TagData.TAG_FIELD_RATING: return TrackUtils.EncodePopularity(map[frameType], ratingConvention).ToString();
                 case TagData.TAG_FIELD_TRACK_NUMBER:
                     value = map[TagData.TAG_FIELD_TRACK_NUMBER];
                     map.TryGetValue(TagData.TAG_FIELD_TRACK_TOTAL, out total);
-                    return TrackUtils.ApplyLeadingZeroes(value, total, tag.TrackDigitsForLeadingZeroes, Settings.UseLeadingZeroes, Settings.OverrideExistingLeadingZeroesFormat);
+                    return TrackUtils.FormatWithLeadingZeroes(value, Settings.OverrideExistingLeadingZeroesFormat, tag.TrackDigitsForLeadingZeroes, Settings.UseLeadingZeroes, total);
                 case TagData.TAG_FIELD_TRACK_TOTAL:
                     value = map[TagData.TAG_FIELD_TRACK_TOTAL];
                     total = value;
-                    return TrackUtils.ApplyLeadingZeroes(value, total, tag.TrackDigitsForLeadingZeroes, Settings.UseLeadingZeroes, Settings.OverrideExistingLeadingZeroesFormat);
+                    return TrackUtils.FormatWithLeadingZeroes(value, Settings.OverrideExistingLeadingZeroesFormat, tag.TrackDigitsForLeadingZeroes, Settings.UseLeadingZeroes, total);
                 case TagData.TAG_FIELD_TRACK_NUMBER_TOTAL:
                     value = map[TagData.TAG_FIELD_TRACK_NUMBER_TOTAL];
                     total = value;
-                    return TrackUtils.ApplyLeadingZeroes(value, total, tag.TrackDigitsForLeadingZeroes, Settings.UseLeadingZeroes, Settings.OverrideExistingLeadingZeroesFormat);
+                    return TrackUtils.FormatWithLeadingZeroes(value, Settings.OverrideExistingLeadingZeroesFormat, tag.TrackDigitsForLeadingZeroes, Settings.UseLeadingZeroes, total);
                 case TagData.TAG_FIELD_DISC_NUMBER:
                     value = map[TagData.TAG_FIELD_DISC_NUMBER];
                     map.TryGetValue(TagData.TAG_FIELD_DISC_TOTAL, out total);
-                    return TrackUtils.ApplyLeadingZeroes(value, total, tag.DiscDigitsForLeadingZeroes, Settings.UseLeadingZeroes, Settings.OverrideExistingLeadingZeroesFormat);
+                    return TrackUtils.FormatWithLeadingZeroes(value, Settings.OverrideExistingLeadingZeroesFormat, tag.DiscDigitsForLeadingZeroes, Settings.UseLeadingZeroes, total);
                 case TagData.TAG_FIELD_DISC_TOTAL:
                     value = map[TagData.TAG_FIELD_DISC_TOTAL];
                     total = value;
-                    return TrackUtils.ApplyLeadingZeroes(value, total, tag.DiscDigitsForLeadingZeroes, Settings.UseLeadingZeroes, Settings.OverrideExistingLeadingZeroesFormat);
+                    return TrackUtils.FormatWithLeadingZeroes(value, Settings.OverrideExistingLeadingZeroesFormat, tag.DiscDigitsForLeadingZeroes, Settings.UseLeadingZeroes, total);
                 case TagData.TAG_FIELD_DISC_NUMBER_TOTAL:
                     value = map[TagData.TAG_FIELD_DISC_NUMBER_TOTAL];
                     total = value;
-                    return TrackUtils.ApplyLeadingZeroes(value, total, tag.DiscDigitsForLeadingZeroes, Settings.UseLeadingZeroes, Settings.OverrideExistingLeadingZeroesFormat);
+                    return TrackUtils.FormatWithLeadingZeroes(value, Settings.OverrideExistingLeadingZeroesFormat, tag.DiscDigitsForLeadingZeroes, Settings.UseLeadingZeroes, total);
                 default: return map[frameType];
             }
         }
@@ -627,7 +683,9 @@ namespace ATL.AudioData.IO
 
         private FileSurgeon.WriteResult writeAdapter(BinaryWriter w, TagData tag, Zone zone)
         {
-            return new FileSurgeon.WriteResult(FileSurgeon.WriteMode.REPLACE, write(tag, w, zone.Name));
+            int result = write(tag, w, zone.Name);
+            FileSurgeon.WriteMode writeMode = (result > -1) ? FileSurgeon.WriteMode.REPLACE : FileSurgeon.WriteMode.OVERWRITE;
+            return new FileSurgeon.WriteResult(writeMode, result);
         }
 
         public bool Write(BinaryReader r, BinaryWriter w, TagData tag, IProgress<float> writeProgress = null)
@@ -735,9 +793,9 @@ namespace ATL.AudioData.IO
                     if (MetaDataIOFactory.TAG_NATIVE == getImplementedTagType() || (embedder != null && getImplementedTagType() == MetaDataIOFactory.TAG_ID3V2))
                     {
                         if (zone.IsDeletable)
-                            result = result && structureHelper.RewriteHeaders(w, -zone.Size + zone.CoreSignature.Length, ACTION.Delete, zone.Name);
+                            result = result && structureHelper.RewriteHeaders(w, null, -zone.Size + zone.CoreSignature.Length, ACTION.Delete, zone.Name);
                         else
-                            result = result && structureHelper.RewriteHeaders(w, 0, ACTION.Edit, zone.Name);
+                            result = result && structureHelper.RewriteHeaders(w, null, 0, ACTION.Edit, zone.Name);
                     }
 
                     if (zone.IsDeletable) cumulativeDelta += zone.Size - zone.CoreSignature.Length;

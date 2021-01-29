@@ -13,15 +13,36 @@ namespace ATL.AudioData
     /// </summary>
     public class FileStructureHelper
     {
-        public const string DEFAULT_ZONE_NAME = "default"; // Default zone name to be used when no naming is necessary (simple cases where there is a but a single Zone to describe)
-        public const string PADDING_ZONE_NAME = "padding"; // Zone name to be used for padding
+        /// <summary>
+        /// Default zone name to be used when no naming is necessary (simple cases where there is a but a single Zone to describe)
+        /// </summary>
+        public const string DEFAULT_ZONE_NAME = "default";
+        /// <summary>
+        /// Zone name to be used for padding
+        /// </summary>
+        public const string PADDING_ZONE_NAME = "padding";
+        /// <summary>
+        /// Zone name to be used to store post-processing elements
+        /// </summary>
+        public const string POST_PROCESSING_ZONE_NAME = "post-processing";
 
-        // Type of action to react to
+        /// <summary>
+        /// Type of action to react to
+        /// </summary>
         public enum ACTION
         {
-            Edit = 0,       // Existing zone is edited, and not removed
-            Add = 1,        // New zone is added
-            Delete = 2      // Existing zone is removed
+            /// <summary>
+            /// Existing zone is edited, and not removed
+            /// </summary>
+            Edit = 0,
+            /// <summary>
+            /// New zone is added
+            /// </summary>
+            Add = 1,
+            /// <summary>
+            /// Existing zone is removed
+            /// </summary>
+            Delete = 2
         };
 
         /// <summary>
@@ -29,13 +50,27 @@ namespace ATL.AudioData
         /// </summary>
         public class FrameHeader
         {
-            // Header types
+            /// <summary>
+            /// Header types
+            /// </summary>
             public enum TYPE
             {
-                Counter = 0,        // Counter : counts the underlying number of frames
-                Size = 1,           // Size : documents the size of a given frame / group of frames
-                Index = 2,          // Index (absolute) : documents the offset (position of 1st byte) of a given frame
-                RelativeIndex = 3   // Index (relative) : documents the offset (position of 1st byte) of a given frame, relative to the header's position
+                /// <summary>
+                /// Counter : counts the underlying number of frames
+                /// </summary>
+                Counter = 0,
+                /// <summary>
+                /// Size : documents the size of a given frame / group of frames
+                /// </summary>
+                Size = 1,
+                /// <summary>
+                /// Index (absolute) : documents the offset (position of 1st byte) of a given frame
+                /// </summary>
+                Index = 2,
+                /// <summary>
+                /// Index (relative) : documents the offset (position of 1st byte) of a given frame, relative to the header's position
+                /// </summary>
+                RelativeIndex = 3
             };
 
             /// <summary>
@@ -55,6 +90,10 @@ namespace ATL.AudioData
             /// </summary>
             public readonly string ParentZone;
             /// <summary>
+            /// Zone to which the header value is pointing to (for post-processing only)
+            /// </summary>
+            public readonly string ValueZone;
+            /// <summary>
             /// Current value of the header (counter : number of frames / size : frame size / index : frame index (absolute) / rindex : frame index (relative to header position))
             /// </summary>
             public object Value;
@@ -62,9 +101,9 @@ namespace ATL.AudioData
             /// <summary>
             /// Constructs a new frame header using the given field values
             /// </summary>
-            public FrameHeader(TYPE type, long position, object value, bool isLittleEndian = true, string parentZone = "")
+            public FrameHeader(TYPE type, long position, object value, bool isLittleEndian = true, string parentZone = "", string valueZone = "")
             {
-                Type = type; Position = position; Value = value; IsLittleEndian = isLittleEndian; ParentZone = parentZone;
+                Type = type; Position = position; Value = value; IsLittleEndian = isLittleEndian; ParentZone = parentZone; ValueZone = valueZone;
             }
         }
 
@@ -84,7 +123,7 @@ namespace ATL.AudioData
             /// <summary>
             /// Size in bytes
             /// </summary>
-            public int Size;
+            public long Size;
             /// <summary>
             /// Data sequence that has to be written in the zone when the zone does not contain any other data
             /// </summary>
@@ -101,13 +140,17 @@ namespace ATL.AudioData
             /// Size descriptors and item counters referencing the zone elsehwere on the file
             /// </summary>
             public IList<FrameHeader> Headers;
+            /// <summary>
+            /// True if the zone might shrink or enlarge, false if it must keep its original size
+            /// </summary>
+            public bool IsResizable;
 
             /// <summary>
             /// Construct a new Zone using the given field values
             /// </summary>
-            public Zone(string name, long offset, int size, byte[] coreSignature, bool isDeletable = true, byte flag = 0)
+            public Zone(string name, long offset, long size, byte[] coreSignature, bool isDeletable = true, byte flag = 0, bool resizable = true)
             {
-                Name = name; Offset = offset; Size = size; CoreSignature = coreSignature; IsDeletable = isDeletable; Flag = flag;
+                Name = name; Offset = offset; Size = size; CoreSignature = coreSignature; IsDeletable = isDeletable; Flag = flag; IsResizable = resizable;
                 Headers = new List<FrameHeader>();
             }
 
@@ -124,10 +167,11 @@ namespace ATL.AudioData
         private readonly IDictionary<string, Zone> zones;
 
         // Stores offset variations caused by zone editing (add/remove/shrink/expand) within current file
-        //      Dictionary key  : zone name
+        //      1st dictionary key  : region id
+        //      2nd dictionary key  : zone name
         //      KVP Key         : initial end offset of given zone (i.e. position of last byte within zone)
         //      KVP Value       : variation applied to given zone (can be positive or negative)
-        private readonly IDictionary<string, KeyValuePair<long, long>> dynamicOffsetCorrection = new Dictionary<string, KeyValuePair<long, long>>();
+        private readonly IDictionary<int, IDictionary<string, KeyValuePair<long, long>>> dynamicOffsetCorrection = new Dictionary<int, IDictionary<string, KeyValuePair<long, long>>>();
 
         // True if attached file uses little-endian convention for number representation; false if big-endian
         private readonly bool isLittleEndian;
@@ -142,7 +186,7 @@ namespace ATL.AudioData
         }
 
         /// <summary>
-        /// Recorded zones
+        /// Recorded zones, sorted by offset
         /// </summary>
         public ICollection<Zone> Zones
         {
@@ -163,10 +207,13 @@ namespace ATL.AudioData
         {
             this.isLittleEndian = isLittleEndian;
             zones = new Dictionary<string, Zone>();
+
+            // Init global region
+            dynamicOffsetCorrection.Add(-1, new Dictionary<string, KeyValuePair<long, long>>());
         }
 
         /// <summary>
-        /// Clears all recorded Zones
+        /// Clear all recorded Zones
         /// </summary>
         public void Clear()
         {
@@ -179,6 +226,7 @@ namespace ATL.AudioData
                 zones.Clear();
             }
             dynamicOffsetCorrection.Clear();
+            dynamicOffsetCorrection.Add(-1, new Dictionary<string, KeyValuePair<long, long>>());
         }
 
         /// <summary>
@@ -208,19 +256,19 @@ namespace ATL.AudioData
         /// <summary>
         /// Record a new zone using the given fields
         /// </summary>
-        public void AddZone(long offset, int size, string name = DEFAULT_ZONE_NAME, bool isDeletable = true)
+        public void AddZone(long offset, long size, string name = DEFAULT_ZONE_NAME, bool isDeletable = true, bool resizable = true)
         {
-            AddZone(offset, size, new byte[0], name, isDeletable);
+            AddZone(offset, size, new byte[0], name, isDeletable, resizable);
         }
 
         /// <summary>
         /// Record a new zone using the given fields
         /// </summary>
-        public void AddZone(long offset, int size, byte[] coreSignature, string zone = DEFAULT_ZONE_NAME, bool isDeletable = true)
+        public void AddZone(long offset, long size, byte[] coreSignature, string zone = DEFAULT_ZONE_NAME, bool isDeletable = true, bool resizable = true)
         {
             if (!zones.ContainsKey(zone))
             {
-                zones.Add(zone, new Zone(zone, offset, size, coreSignature, isDeletable));
+                zones.Add(zone, new Zone(zone, offset, size, coreSignature, isDeletable, 0, resizable));
             }
             else // Existing zone might already contain headers
             {
@@ -265,13 +313,15 @@ namespace ATL.AudioData
         }
 
         /// <summary>
-        /// Record a new Index-type header using the given fields and attach it to the zone of given name, using a position relative to the last zone's offset
+        /// Record a new Index-type header using the given fields and attach it to the zone of given name, using a position relative to that zone's offset
         /// </summary>
-        public void AddPendingIndex(long pendingPosition, object value, bool relative, string zone, string positionZone, string parentZone = "")
+        public void AddPostProcessingIndex(long pendingPosition, object value, bool relative, string valueZone, string positionZone, string parentZone = "")
         {
-            long finalPosition = zones[positionZone].Offset + pendingPosition;
+            long finalPosition = getCorrectedOffset(zones[positionZone].Offset) + pendingPosition;
+            //long finalPosition = zones[positionZone].Offset + pendingPosition;
 
-            addZoneHeader(zone, relative ? FrameHeader.TYPE.RelativeIndex : FrameHeader.TYPE.Index, finalPosition, value, isLittleEndian, parentZone);
+            AddZone(finalPosition, 0, POST_PROCESSING_ZONE_NAME);
+            addZoneHeader(POST_PROCESSING_ZONE_NAME, relative ? FrameHeader.TYPE.RelativeIndex : FrameHeader.TYPE.Index, finalPosition, value, isLittleEndian, parentZone, valueZone);
         }
 
         /// <summary>
@@ -286,36 +336,10 @@ namespace ATL.AudioData
         /// <summary>
         /// Record a new header using the given fields and attach it to the zone of given name
         /// </summary>
-        private void addZoneHeader(string zone, FrameHeader.TYPE type, long position, object value, bool isLittleEndian, string parentZone = "")
+        private void addZoneHeader(string zone, FrameHeader.TYPE type, long position, object value, bool isLittleEndian, string parentZone = "", string valueZone = "")
         {
             if (!zones.ContainsKey(zone)) DeclareZone(zone);
-            zones[zone].Headers.Add(new FrameHeader(type, position, value, isLittleEndian, parentZone));
-        }
-
-        public long GetFirstRecordedOffset()
-        {
-            long result = long.MaxValue;
-            if (zones != null)
-                foreach (Zone zone in zones.Values)
-                {
-                    result = Math.Min(result, zone.Offset);
-                    foreach (FrameHeader header in zone.Headers)
-                        result = Math.Min(result, header.Position);
-                }
-            return result;
-        }
-
-        public long GetLastRecordedOffset()
-        {
-            long result = 0;
-            if (zones != null)
-                foreach (Zone zone in zones.Values)
-                {
-                    result = Math.Max(result, zone.Offset + zone.Size);
-                    foreach (FrameHeader header in zone.Headers)
-                        result = Math.Max(result, header.Position);
-                }
-            return result;
+            zones[zone].Headers.Add(new FrameHeader(type, position, value, isLittleEndian, parentZone, valueZone));
         }
 
         /// <summary>
@@ -375,7 +399,7 @@ namespace ATL.AudioData
             }
             else if (value is long)
             {
-                updatedValue = (long)((long)value + delta);
+                updatedValue = (long)value + delta;
                 return BitConverter.GetBytes((long)updatedValue);
             }
             else if (value is ulong) // Need to tweak because ulong + int is illegal according to the compiler
@@ -409,24 +433,60 @@ namespace ATL.AudioData
                 throw new NotSupportedException("Value type not supported in comparison");
         }
 
+        /// <summary>
+        /// Return the the given zone's offset corrected according to the position shifts already applied by previous calls to <see cref="RewriteHeaders"/>
+        /// e.g. if offset is 30 and 10 bytes have been inserted at position 15, corrected offset will be 40
+        /// </summary>
+        /// <param name="zone">Name of the zone to get the corrected offset for</param>
+        /// <returns>Corrected offset of the zone with the given name</returns>
         public long getCorrectedOffset(string zone)
         {
-            long offsetPositionCorrection = 0;
-            foreach (KeyValuePair<long, long> offsetDelta in dynamicOffsetCorrection.Values)
-                if (zones[zone].Offset >= offsetDelta.Key) offsetPositionCorrection += offsetDelta.Value;
+            return getCorrectedOffset(zones[zone].Offset);
+        }
 
-            return zones[zone].Offset + offsetPositionCorrection;
+        /// <summary>
+        /// Return the the given offset corrected according to the position shifts already applied by previous calls to <see cref="RewriteHeaders"/>
+        /// e.g. if offset is 30 and 10 bytes have been inserted at position 15, corrected offset will be 40
+        /// </summary>
+        /// <param name="offset">Offset to correct</param>
+        /// <returns>Corrected offset</returns>
+        public long getCorrectedOffset(long offset)
+        {
+            long offsetPositionCorrection = 0;
+            foreach (KeyValuePair<long, long> offsetDelta in dynamicOffsetCorrection[-1].Values) // Search in global repo
+                if (offset >= offsetDelta.Key) offsetPositionCorrection += offsetDelta.Value;
+
+            return offset + offsetPositionCorrection;
+        }
+
+        /// <summary>
+        /// Perform post-processing modifications to the given stream
+        /// </summary>
+        /// <param name="writer">Stream to write modifications to</param>
+        public void PostProcessing(BinaryWriter writer)
+        {
+            RewriteHeaders(writer, null, 0, ACTION.Edit, POST_PROCESSING_ZONE_NAME);
         }
 
         /// <summary>
         /// Rewrite all zone headers in the given stream according to the given size evolution and the given action
         /// </summary>
-        /// <param name="w">Stream to write modifications to</param>
+        /// <param name="fullScopeWriter">Full stream to write modifications to</param>
+        /// <param name="bufferedWriter">Buffered stream to write modifications to</param>
         /// <param name="deltaSize">Evolution of zone size (in bytes; positive or negative)</param>
         /// <param name="action">Action applied to zone</param>
-        /// <param name="zone">Name of zone</param>
+        /// <param name="zone">Name of zone to process</param>
+        /// <param name="globalOffsetCorrection">Offset correction to apply to the zone to process</param>
+        /// <param name="regionId">ID of the current buffer region; -1 if working on the file itself (global offset correction)</param>
         /// <returns></returns>
-        public bool RewriteHeaders(BinaryWriter w, long deltaSize, ACTION action, string zone = DEFAULT_ZONE_NAME, long globalOffsetCorrection = 0)
+        public bool RewriteHeaders(
+            BinaryWriter fullScopeWriter,
+            BinaryWriter bufferedWriter,
+            long deltaSize,
+            ACTION action,
+            string zone = DEFAULT_ZONE_NAME,
+            long globalOffsetCorrection = 0,
+            int regionId = -1)
         {
             long delta;
             long offsetPositionCorrection;
@@ -434,9 +494,22 @@ namespace ATL.AudioData
             byte[] value;
             object updatedValue;
             bool passedParentZone;
+            bool passedValueZone;
+
 
             if (null == zones) return false;
             if (!zones.ContainsKey(zone)) return true; // No effect
+
+
+            // Get the dynamic correction map from the proper region
+            IDictionary<string, KeyValuePair<long, long>> localDynamicOffsetCorrection;
+            if (!dynamicOffsetCorrection.ContainsKey(regionId))
+                dynamicOffsetCorrection.Add(regionId, new Dictionary<string, KeyValuePair<long, long>>());
+
+            localDynamicOffsetCorrection = dynamicOffsetCorrection[regionId];
+
+            // Don't reprocess the position of a post-processing zone
+            bool isPostReprocessing = zone == POST_PROCESSING_ZONE_NAME;
 
             // == Update the current zone's headers
             foreach (FrameHeader header in zones[zone].Headers)
@@ -446,18 +519,33 @@ namespace ATL.AudioData
                 offsetValueCorrection = 0;
                 delta = 0;
                 passedParentZone = false;
+                passedValueZone = false;
 
-                foreach (string dynamicZone in dynamicOffsetCorrection.Keys)
+                foreach (string dynamicZone in localDynamicOffsetCorrection.Keys)
                 {
                     // Don't need to process zones located further than we are
                     if (dynamicZone == header.ParentZone) passedParentZone = true;
+                    if (dynamicZone == header.ValueZone) passedValueZone = true;
 
-                    KeyValuePair<long, long> offsetDelta = dynamicOffsetCorrection[dynamicZone];
+                    KeyValuePair<long, long> offsetDelta = localDynamicOffsetCorrection[dynamicZone];
 
-                    if (header.Position >= offsetDelta.Key && !passedParentZone) offsetPositionCorrection += offsetDelta.Value;
+                    if (header.Position >= offsetDelta.Key && !passedParentZone && !isPostReprocessing) offsetPositionCorrection += offsetDelta.Value;
 
-                    if ((FrameHeader.TYPE.Index == header.Type || FrameHeader.TYPE.RelativeIndex == header.Type) && isValueGT(header.Value, 0, offsetDelta.Key)) offsetValueCorrection += offsetDelta.Value;
+                    if ((FrameHeader.TYPE.Index == header.Type || FrameHeader.TYPE.RelativeIndex == header.Type) && isValueGT(header.Value, 0, offsetDelta.Key) && !passedValueZone) offsetValueCorrection += offsetDelta.Value;
                 }
+
+                // If we're about to write outside the buffered writer and the full-scope writer is available, switch to it
+                BinaryWriter w;
+                if (null == bufferedWriter) w = fullScopeWriter;
+                else if (header.Position + offsetPositionCorrection < 0 || header.Position + offsetPositionCorrection > bufferedWriter.BaseStream.Length)
+                {
+                    if (null == fullScopeWriter) throw new InvalidDataException("Trying to write outside the buffered writer");
+                    Logging.LogDelegator.GetLogDelegate()(Logging.Log.LV_DEBUG, "Trying to write outside the buffered writer - switching to full-scope writer");
+                    w = fullScopeWriter;
+                    offsetPositionCorrection = 0;
+                }
+                else w = bufferedWriter;
+
 
                 if (FrameHeader.TYPE.Counter == header.Type)
                 {
@@ -541,9 +629,23 @@ namespace ATL.AudioData
                 } // Index & relative index types
             } // Loop through headers
 
-            // Update dynamic offset
-            if (!dynamicOffsetCorrection.ContainsKey(zone))
-                dynamicOffsetCorrection.Add(zone, new KeyValuePair<long, long>(zones[zone].Offset + zones[zone].Size, deltaSize));
+            // Update local dynamic offset
+            if (!localDynamicOffsetCorrection.ContainsKey(zone))
+                localDynamicOffsetCorrection.Add(zone, new KeyValuePair<long, long>(zones[zone].Offset + zones[zone].Size, deltaSize));
+
+            // If applicable, update global dynamic offset
+            if (regionId > -1)
+            {
+                IDictionary<string, KeyValuePair<long, long>> globalRegion = dynamicOffsetCorrection[-1];
+                // Add new region
+                if (!globalRegion.ContainsKey(zone))
+                    globalRegion.Add(zone, new KeyValuePair<long, long>(zones[zone].Offset + zones[zone].Size, deltaSize));
+                else // Increment current delta to existing region
+                {
+                    KeyValuePair<long, long> currentValues = globalRegion[zone];
+                    globalRegion[zone] = new KeyValuePair<long, long>(currentValues.Key, currentValues.Value + deltaSize);
+                }
+            }
 
             return true;
         }

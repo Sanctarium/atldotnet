@@ -4,10 +4,7 @@ using System.IO;
 using System.Drawing;
 using ATL.test.IO.MetaData;
 using System.Collections.Generic;
-using Commons;
-using ATL.Logging;
 using static ATL.Logging.Log;
-using System.Linq;
 
 namespace ATL.test.IO
 {
@@ -82,18 +79,45 @@ namespace ATL.test.IO
         }
 
         [TestMethod]
+        public void TagIO_R_MetaFormat()
+        {
+            Track theTrack = new Track(TestUtils.GetResourceLocationRoot() + "AA/aa.aa");
+            Assert.AreEqual(1, theTrack.MetadataFormats.Count);
+            Assert.AreEqual("Native / AA", theTrack.MetadataFormats[0].Name);
+            theTrack = new Track(TestUtils.GetResourceLocationRoot() + "MP3/APE.mp3");
+            Assert.AreEqual(1, theTrack.MetadataFormats.Count);
+            Assert.AreEqual("APEtag v2", theTrack.MetadataFormats[0].Name);
+            theTrack = new Track(TestUtils.GetResourceLocationRoot() + "MP3/ID3v2.2 3 pictures.mp3");
+            Assert.AreEqual(1, theTrack.MetadataFormats.Count);
+            Assert.AreEqual("ID3v2.2", theTrack.MetadataFormats[0].Name);
+            theTrack = new Track(TestUtils.GetResourceLocationRoot() + "MP3/id3v1.mp3");
+            Assert.AreEqual(1, theTrack.MetadataFormats.Count);
+            Assert.AreEqual("ID3v1.1", theTrack.MetadataFormats[0].Name);
+            theTrack = new Track(TestUtils.GetResourceLocationRoot() + "MP3/01 - Title Screen.mp3");
+            Assert.AreEqual(2, theTrack.MetadataFormats.Count);
+            Assert.AreEqual("ID3v2.3", theTrack.MetadataFormats[0].Name);
+            Assert.AreEqual("ID3v1.1", theTrack.MetadataFormats[1].Name);
+            theTrack = new Track(TestUtils.GetResourceLocationRoot() + "OGG/ogg.ogg");
+            Assert.AreEqual(1, theTrack.MetadataFormats.Count);
+            Assert.AreEqual("Native / Vorbis (OGG)", theTrack.MetadataFormats[0].Name);
+            theTrack = new Track(TestUtils.GetResourceLocationRoot() + "FLAC/flac.flac");
+            Assert.AreEqual(1, theTrack.MetadataFormats.Count);
+            Assert.AreEqual("Native / Vorbis (FLAC)", theTrack.MetadataFormats[0].Name);
+        }
+
+        [TestMethod]
         public void TagIO_RW_DeleteTag()
         {
             string testFileLocation = TestUtils.CopyAsTempTestFile("MP3/01 - Title Screen.mp3");
             Track theTrack = new Track(testFileLocation);
 
-            theTrack.Remove(MetaDataIOFactory.TAG_ID3V2);
+            Assert.IsTrue(theTrack.Remove(MetaDataIOFactory.TAG_ID3V2));
 
             Assert.AreEqual("Nintendo Sound Scream", theTrack.Artist); // Specifically tagged like this on the ID3v1 tag
             Assert.AreEqual(0, theTrack.Year); // Empty on the ID3v1 tag => should really come empty since ID3v2 tag has been removed
 
             // Get rid of the working copy
-            File.Delete(testFileLocation);
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
         }
 
         /// <summary>
@@ -105,7 +129,7 @@ namespace ATL.test.IO
             string location = TestUtils.GetResourceLocationRoot() + resource;
             string testFileLocation = TestUtils.CopyAsTempTestFile(resource);
             Track theTrack = new Track(testFileLocation);
-            theTrack.Save();
+            Assert.IsTrue(theTrack.Save());
 
             theTrack = new Track(testFileLocation);
 
@@ -121,14 +145,14 @@ namespace ATL.test.IO
             // NB : Due to field order differences, MD5 comparison is not possible yet
 
             // Get rid of the working copy
-            File.Delete(testFileLocation);
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
         }
 
         [TestMethod]
         public void TagIO_RW_UpdateNeutral()
         {
-            Settings.MP4_createNeroChapters = false;
-            Settings.MP4_createQuicktimeChapters = false;
+            ATL.Settings.MP4_createNeroChapters = false;
+            ATL.Settings.MP4_createQuicktimeChapters = false;
             try
             {
                 tagIO_RW_UpdateNeutral("MP3/id3v2.4_UTF8.mp3"); // ID3v2
@@ -141,13 +165,13 @@ namespace ATL.test.IO
                 tagIO_RW_UpdateNeutral("VQF/vqf.vqf");
                 tagIO_RW_UpdateNeutral("VGM/vgm.vgm");
                 tagIO_RW_UpdateNeutral("SPC/spc.spc");
-                tagIO_RW_UpdateNeutral("AAC/mp4.m4a");
+                tagIO_RW_UpdateNeutral("MP4/mp4.m4a");
                 tagIO_RW_UpdateNeutral("WMA/wma.wma");
             }
             finally
             {
-                Settings.MP4_createNeroChapters = true;
-                Settings.MP4_createQuicktimeChapters = true;
+                ATL.Settings.MP4_createNeroChapters = true;
+                ATL.Settings.MP4_createQuicktimeChapters = true;
             }
         }
 
@@ -161,7 +185,7 @@ namespace ATL.test.IO
             // Tricky fields that aren't managed with a 1-to-1 mapping
             theTrack.Year = 1944;
             theTrack.TrackNumber = 10;
-            theTrack.Save();
+            Assert.IsTrue(theTrack.Save());
 
             theTrack = new Track(testFileLocation);
 
@@ -170,7 +194,7 @@ namespace ATL.test.IO
             if (supportsTrack) Assert.AreEqual(10, theTrack.TrackNumber);
 
             // Get rid of the working copy
-            File.Delete(testFileLocation);
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
         }
 
         [TestMethod]
@@ -190,12 +214,12 @@ namespace ATL.test.IO
                 tagIO_RW_UpdateEmpty("VGM/empty.vgm", false);
                 tagIO_RW_UpdateEmpty("SPC/empty.spc");
 
-                tagIO_RW_UpdateEmpty("AAC/empty.m4a");
+                tagIO_RW_UpdateEmpty("MP4/empty.m4a");
                 tagIO_RW_UpdateEmpty("WMA/empty_full.wma");
             }
             finally
             {
-                Settings.DefaultTagsWhenNoMetadata = new int[2] { ATL.AudioData.MetaDataIOFactory.TAG_ID3V2, ATL.AudioData.MetaDataIOFactory.TAG_NATIVE };
+                ATL.Settings.DefaultTagsWhenNoMetadata = new int[2] { ATL.AudioData.MetaDataIOFactory.TAG_ID3V2, ATL.AudioData.MetaDataIOFactory.TAG_NATIVE };
             }
         }
 
@@ -212,7 +236,7 @@ namespace ATL.test.IO
             theTrack.TrackTotal = 20;
             theTrack.DiscNumber = 30;
             theTrack.DiscTotal = 40;
-            theTrack.Save();
+            Assert.IsTrue(theTrack.Save());
 
             theTrack = new Track(testFileLocation);
 
@@ -224,14 +248,14 @@ namespace ATL.test.IO
             if (supportsTotalTracksDiscs) Assert.AreEqual(40, theTrack.DiscTotal);
 
             // Get rid of the working copy
-            File.Delete(testFileLocation);
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
         }
 
         [TestMethod]
         public void TagIO_RW_UpdateTagBaseField()
         {
-            Settings.MP4_createNeroChapters = false;
-            Settings.MP4_createQuicktimeChapters = false;
+            ATL.Settings.MP4_createNeroChapters = false;
+            ATL.Settings.MP4_createQuicktimeChapters = false;
             try
             {
                 tagIO_RW_UpdateTagBaseField("MP3/id3v2.4_UTF8.mp3"); // ID3v2
@@ -244,18 +268,19 @@ namespace ATL.test.IO
                 tagIO_RW_UpdateTagBaseField("VQF/vqf.vqf", false, false);
                 tagIO_RW_UpdateTagBaseField("VGM/vgm.vgm", false, false, false);
                 tagIO_RW_UpdateTagBaseField("SPC/spc.spc", false, false);
-                tagIO_RW_UpdateTagBaseField("AAC/mp4.m4a");
+                tagIO_RW_UpdateTagBaseField("MP4/mp4.m4a");
                 tagIO_RW_UpdateTagBaseField("WMA/wma.wma");
-            } finally
+            }
+            finally
             {
-                Settings.MP4_createNeroChapters = true;
-                Settings.MP4_createQuicktimeChapters = true;
+                ATL.Settings.MP4_createNeroChapters = true;
+                ATL.Settings.MP4_createQuicktimeChapters = true;
             }
         }
 
         private void tagIO_RW_UpdatePadding(string resource, int paddingSize = 2048)
         {
-            Settings.PaddingSize = paddingSize;
+            ATL.Settings.PaddingSize = paddingSize;
             try
             {
                 ArrayLogger log = new ArrayLogger();
@@ -269,7 +294,7 @@ namespace ATL.test.IO
 
                 // A1- Check that the resulting file (working copy that has been processed) keeps the same quantity of bytes when adding data
                 theTrack.Title = originalTitle + "1234567890";
-                theTrack.Save();
+                Assert.IsTrue(theTrack.Save());
 
                 // A11- File length should be the same
                 FileInfo originalFileInfo = new FileInfo(location);
@@ -289,7 +314,7 @@ namespace ATL.test.IO
 
                 // A2- Check that the resulting file (working copy that has been processed) keeps the same quantity of bytes when removing data
                 theTrack.Title = originalTitle;
-                theTrack.Save();
+                Assert.IsTrue(theTrack.Save());
 
                 // A21- File length should be the same
                 originalFileInfo = new FileInfo(location);
@@ -308,66 +333,67 @@ namespace ATL.test.IO
                 }
 
                 // Get rid of the working copy
-                File.Delete(testFileLocation);
+                if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
             }
             finally
             {
-                Settings.PaddingSize = 2048;
+                ATL.Settings.PaddingSize = 2048;
             }
         }
 
         private void tagIO_RW_AddPadding(string resource, int extraBytes = 0)
         {
-            bool initEnablePadding = Settings.AddNewPadding;
-            Settings.AddNewPadding = false;
+            bool initEnablePadding = ATL.Settings.AddNewPadding;
+            ATL.Settings.AddNewPadding = false;
 
             string location = TestUtils.GetResourceLocationRoot() + resource;
             string testFileLocation = TestUtils.CopyAsTempTestFile(resource);
             Track theTrack = new Track(testFileLocation);
 
             theTrack.Title = "a";
-            theTrack.Save();
+            Assert.IsTrue(theTrack.Save());
 
             long initialLength = new FileInfo(testFileLocation).Length;
 
-            Settings.AddNewPadding = true;
+            ATL.Settings.AddNewPadding = true;
             try
             {
                 theTrack.Title = "b";
-                theTrack.Save();
+                Assert.IsTrue(theTrack.Save());
 
                 // B1- Check that the resulting file size has been increased by the size of the padding
-                Assert.AreEqual(initialLength + Settings.PaddingSize + extraBytes, new FileInfo(testFileLocation).Length);
+                Assert.AreEqual(initialLength + ATL.Settings.PaddingSize + extraBytes, new FileInfo(testFileLocation).Length);
 
                 // Get rid of the working copy
-                File.Delete(testFileLocation);
+                if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
             }
             finally
             {
-                Settings.AddNewPadding = initEnablePadding;
+                ATL.Settings.AddNewPadding = initEnablePadding;
             }
         }
 
         [TestMethod]
         public void TagIO_RW_Padding()
         {
-            Settings.MP4_createNeroChapters = false;
-            Settings.MP4_createQuicktimeChapters = false;
+            ATL.Settings.MP4_createNeroChapters = false;
+            ATL.Settings.MP4_createQuicktimeChapters = false;
             try
             {
                 tagIO_RW_UpdatePadding("MP3/id3v2.4_UTF8.mp3"); // padded ID3v2
                 tagIO_RW_UpdatePadding("OGG/ogg.ogg"); // padded Vorbis-OGG
-                tagIO_RW_UpdatePadding("AAC/mp4.m4a", 17100); // padded MP4
+                tagIO_RW_UpdatePadding("MP4/mp4.m4a", 17100); // padded MP4
                 tagIO_RW_UpdatePadding("FLAC/flac.flac", 4063); // padded Vorbis-FLAC
 
                 tagIO_RW_AddPadding("MP3/empty.mp3");
                 tagIO_RW_AddPadding("OGG/empty.ogg", 8); // 8 extra bytes for the segments table extension
-                tagIO_RW_AddPadding("AAC/chapters_NERO.mp4");
-                tagIO_RW_AddPadding("FLAC/empty.flac", Settings.PaddingSize + 4); // Additional padding for the ID3v2 tag + 4 bytes for VorbisComment's PADDING block header
-            } finally
+                tagIO_RW_AddPadding("MP4/chapters_NERO.mp4");
+                tagIO_RW_AddPadding("FLAC/empty.flac", ATL.Settings.PaddingSize + 4); // Additional padding for the ID3v2 tag + 4 bytes for VorbisComment's PADDING block header
+            }
+            finally
             {
-                Settings.MP4_createNeroChapters = true;
-                Settings.MP4_createQuicktimeChapters = true;
+                ATL.Settings.MP4_createNeroChapters = true;
+                ATL.Settings.MP4_createQuicktimeChapters = true;
             }
         }
 
@@ -379,7 +405,7 @@ namespace ATL.test.IO
 
             theTrack.AdditionalFields.Add("ABCD", "efgh");
             theTrack.AdditionalFields.Remove("TENC");
-            theTrack.Save();
+            Assert.IsTrue(theTrack.Save());
 
             theTrack = new Track(testFileLocation);
 
@@ -388,7 +414,7 @@ namespace ATL.test.IO
             Assert.AreEqual("efgh", theTrack.AdditionalFields["ABCD"]);
 
             // Get rid of the working copy
-            File.Delete(testFileLocation);
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
         }
 
         [TestMethod]
@@ -398,7 +424,7 @@ namespace ATL.test.IO
             Track theTrack = new Track(testFileLocation);
 
             theTrack.AdditionalFields["TENC"] = "update test";
-            theTrack.Save();
+            Assert.IsTrue(theTrack.Save());
 
             theTrack = new Track(testFileLocation);
 
@@ -407,7 +433,7 @@ namespace ATL.test.IO
             Assert.AreEqual("update test", theTrack.AdditionalFields["TENC"]);
 
             // Get rid of the working copy
-            File.Delete(testFileLocation);
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
         }
 
         [TestMethod]
@@ -422,7 +448,7 @@ namespace ATL.test.IO
             PictureInfo newPicture = PictureInfo.fromBinaryData(File.ReadAllBytes(TestUtils.GetResourceLocationRoot() + "_Images/pic1.gif"), PictureInfo.PIC_TYPE.CD);
             theTrack.EmbeddedPictures.Add(newPicture);
 
-            theTrack.Save();
+            Assert.IsTrue(theTrack.Save());
 
             theTrack = new Track(testFileLocation);
 
@@ -442,12 +468,12 @@ namespace ATL.test.IO
 
             // Remove all
             theTrack.EmbeddedPictures.Clear();
-            theTrack.Save();
+            Assert.IsTrue(theTrack.Save());
             theTrack = new Track(testFileLocation);
             Assert.AreEqual(0, theTrack.EmbeddedPictures.Count);
 
             // Get rid of the working copy
-            File.Delete(testFileLocation);
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
         }
 
         [TestMethod]
@@ -460,7 +486,7 @@ namespace ATL.test.IO
             PictureInfo newPicture = PictureInfo.fromBinaryData(File.ReadAllBytes(TestUtils.GetResourceLocationRoot() + "_Images/pic2.jpg"), PictureInfo.PIC_TYPE.Front);
             theTrack.EmbeddedPictures.Add(newPicture);
 
-            theTrack.Save();
+            Assert.IsTrue(theTrack.Save());
 
             theTrack = new Track(testFileLocation);
 
@@ -488,7 +514,7 @@ namespace ATL.test.IO
             Assert.IsTrue(foundConductor);
 
             // Get rid of the working copy
-            File.Delete(testFileLocation);
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
         }
 
         [TestMethod]
@@ -510,11 +536,8 @@ namespace ATL.test.IO
             chapter.Picture = PictureInfo.fromBinaryData(File.ReadAllBytes(TestUtils.GetResourceLocationRoot() + "_Images/pic1.jpeg"));
             theTrack.Chapters.Add(chapter);
 
-
+            Assert.IsTrue(theTrack.Save());
             IList<ChapterInfo> chaptersSave = new List<ChapterInfo>(theTrack.Chapters);
-            chaptersSave = chaptersSave.OrderBy(chap => chap.StartTime).ToList();
-
-            theTrack.Save();
 
             theTrack = new Track(testFileLocation);
             IList<PictureInfo> pics = theTrack.EmbeddedPictures; // Hack to load chapter pictures
@@ -529,7 +552,7 @@ namespace ATL.test.IO
                 Assert.AreEqual(chaptersSave[i].StartOffset, readChapter.StartOffset);
                 Assert.AreEqual(chaptersSave[i].StartTime, readChapter.StartTime);
                 Assert.AreEqual(chaptersSave[i].EndOffset, readChapter.EndOffset);
-                Assert.AreEqual(chaptersSave[i].EndTime, readChapter.EndTime);
+                if (i < theTrack.Chapters.Count - 1) Assert.AreEqual(chaptersSave[i + 1].StartTime, readChapter.EndTime);
                 Assert.AreEqual(chaptersSave[i].Title, readChapter.Title);
                 Assert.AreEqual(chaptersSave[i].Subtitle, readChapter.Subtitle);
                 Assert.AreEqual(chaptersSave[i].UniqueID, readChapter.UniqueID);
@@ -547,12 +570,12 @@ namespace ATL.test.IO
 
             // Delete all
             theTrack.Chapters.Clear();
-            theTrack.Save();
+            Assert.IsTrue(theTrack.Save());
             theTrack = new Track(testFileLocation);
             Assert.AreEqual(0, theTrack.Chapters.Count);
 
             // Get rid of the working copy
-            File.Delete(testFileLocation);
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
         }
 
         [TestMethod]
@@ -569,7 +592,7 @@ namespace ATL.test.IO
 
             theTrack.Chapters[2] = chapter;
 
-            theTrack.Save();
+            Assert.IsTrue(theTrack.Save());
 
             theTrack = new Track(testFileLocation);
 
@@ -579,13 +602,13 @@ namespace ATL.test.IO
             Assert.AreEqual(chapter.Url.Url, theTrack.Chapters[2].Url.Url);
 
             // Get rid of the working copy
-            File.Delete(testFileLocation);
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
         }
 
         [TestMethod]
         public void TagIO_RW_UpdateKeepDataIntegrity()
         {
-            Settings.AddNewPadding = true;
+            ATL.Settings.AddNewPadding = true;
 
             try
             {
@@ -596,12 +619,12 @@ namespace ATL.test.IO
 
                 string initialArtist = theTrack.Artist; // '֎FATHER֎'
                 theTrack.Artist = "Hey ho";
-                theTrack.Save();
+                Assert.IsTrue(theTrack.Save());
 
                 theTrack = new Track(testFileLocation);
 
                 theTrack.Artist = initialArtist;
-                theTrack.Save();
+                Assert.IsTrue(theTrack.Save());
 
                 // Check that the resulting file (working copy that has been processed) remains identical to the original file (i.e. no byte lost nor added)
                 FileInfo originalFileInfo = new FileInfo(location);
@@ -615,11 +638,11 @@ namespace ATL.test.IO
                                 Assert.IsTrue(originalMD5.Equals(testMD5));
                 */
                 // Get rid of the working copy
-                File.Delete(testFileLocation);
+                if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
             }
             finally
             {
-                Settings.AddNewPadding = false;
+                ATL.Settings.AddNewPadding = false;
             }
         }
 
@@ -642,7 +665,7 @@ namespace ATL.test.IO
             }
 
             // Get rid of the working copy
-            File.Delete(testFileLocation);
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
         }
 
 
@@ -661,7 +684,7 @@ namespace ATL.test.IO
             }
 
             // Get rid of the working copy
-            File.Delete(testFileLocation);
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
         }
 
         [TestMethod]
@@ -679,7 +702,67 @@ namespace ATL.test.IO
             }
 
             // Get rid of the working copy
-            File.Delete(testFileLocation);
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
+        }
+
+        [TestMethod]
+        public void ID3v1_Ignore_RW()
+        {
+            string resource = "MP3/id3v1.mp3";
+            string testFileLocation = TestUtils.CopyAsTempTestFile(resource);
+
+            bool defaultSettings = ATL.Settings.EnrichID3v1;
+            ATL.Settings.EnrichID3v1 = true;
+            try
+            {
+                Track theTrack = new Track(testFileLocation);
+
+                theTrack.Artist = "bobTheBuilder";
+                theTrack.AdditionalFields["test"] = "test1"; // ID3v1 doesn't support that
+                Assert.IsTrue(theTrack.Save());
+
+                theTrack = new Track(testFileLocation);
+                Assert.AreEqual("bobTheBuilder", theTrack.Artist); // Edited
+                Assert.AreEqual(1, theTrack.AdditionalFields.Count);
+                Assert.IsTrue(theTrack.AdditionalFields.ContainsKey("TEST"));
+                Assert.AreEqual("test1", theTrack.AdditionalFields["TEST"]);
+            }
+            finally
+            {
+                ATL.Settings.EnrichID3v1 = defaultSettings;
+            }
+
+            // Get rid of the working copy
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
+        }
+
+        [TestMethod]
+        public void ID3v1_Focus_RW()
+        {
+            string resource = "MP3/id3v1.mp3";
+            string testFileLocation = TestUtils.CopyAsTempTestFile(resource);
+
+            bool defaultSettings = ATL.Settings.EnrichID3v1;
+            ATL.Settings.EnrichID3v1 = false;
+            try
+            {
+                Track theTrack = new Track(testFileLocation);
+
+                theTrack.Artist = "bobTheBuilder";
+                theTrack.AdditionalFields["test"] = "test1"; // ID3v1 doesn't support that
+                Assert.IsTrue(theTrack.Save());
+
+                theTrack = new Track(testFileLocation);
+                Assert.AreEqual("bobTheBuilder", theTrack.Artist); // Edited
+                Assert.AreEqual(0, theTrack.AdditionalFields.Count); // Not saved
+            }
+            finally
+            {
+                ATL.Settings.EnrichID3v1 = defaultSettings;
+            }
+
+            // Get rid of the working copy
+            if (Settings.DeleteAfterSuccess) File.Delete(testFileLocation);
         }
 
     }

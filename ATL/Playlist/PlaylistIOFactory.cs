@@ -8,72 +8,109 @@ namespace ATL.Playlist
     /// </summary>
     public class PlaylistIOFactory : Factory
     {
-        // Defines the supported formats
+        // Supported playilst formats
+        /// <summary>
+        /// M3U format
+        /// </summary>
         public const int PL_M3U = 0;
+        /// <summary>
+        /// PLS format
+        /// </summary>
         public const int PL_PLS = 1;
+        /// <summary>
+        /// FPL format
+        /// </summary>
         public const int PL_FPL = 2;
+        /// <summary>
+        /// XSPF format
+        /// </summary>
         public const int PL_XSPF = 3;
+        /// <summary>
+        /// SMIL format
+        /// </summary>
         public const int PL_SMIL = 4;
+        /// <summary>
+        /// ASX format
+        /// </summary>
         public const int PL_ASX = 5;
+        /// <summary>
+        /// B4S format
+        /// </summary>
         public const int PL_B4S = 6;
 
         // The instance of this factory
         private static PlaylistIOFactory theFactory = null;
 
+        private static readonly object _lockable = new object();
 
+        /// <summary>
+        /// Get an instance of the factory
+        /// </summary>
+        /// <returns>Instance of the playlist factory</returns>
         public static PlaylistIOFactory GetInstance()
         {
-            if (null == theFactory)
+            lock (_lockable)
             {
-                theFactory = new PlaylistIOFactory();
-                theFactory.formatListByExt = new Dictionary<string, IList<Format>>();
+                if (null == theFactory)
+                {
+                    theFactory = new PlaylistIOFactory();
+                    theFactory.formatListByExt = new Dictionary<string, IList<Format>>();
 
-                PlaylistFormat tempFmt = new PlaylistFormat(PL_M3U, "M3U");
-                tempFmt.AddExtension(".m3u");
-                tempFmt.AddExtension(".m3u8");
-                theFactory.addFormat(tempFmt);
+                    PlaylistFormat tempFmt = new PlaylistFormat(PL_M3U, "M3U");
+                    tempFmt.AddExtension(".m3u");
+                    tempFmt.AddExtension(".m3u8");
+                    theFactory.addFormat(tempFmt);
 
-                tempFmt = new PlaylistFormat(PL_PLS, "PLS");
-                tempFmt.AddExtension(".pls");
-                theFactory.addFormat(tempFmt);
+                    tempFmt = new PlaylistFormat(PL_PLS, "PLS");
+                    tempFmt.AddExtension(".pls");
+                    theFactory.addFormat(tempFmt);
 
-                tempFmt = new PlaylistFormat(PL_FPL, "FPL (experimental)");
-                tempFmt.LocationFormat = PlaylistFormat.LocationFormatting.MS_URI;
-                tempFmt.AddExtension(".fpl");
-                theFactory.addFormat(tempFmt);
+                    tempFmt = new PlaylistFormat(PL_FPL, "FPL (experimental)");
+                    tempFmt.LocationFormat = PlaylistFormat.LocationFormatting.MS_URI;
+                    tempFmt.AddExtension(".fpl");
+                    theFactory.addFormat(tempFmt);
 
-                tempFmt = new PlaylistFormat(PL_XSPF, "XSPF (spiff)");
-                tempFmt.AddExtension(".xspf");
-                theFactory.addFormat(tempFmt);
+                    tempFmt = new PlaylistFormat(PL_XSPF, "XSPF (spiff)");
+                    tempFmt.AddExtension(".xspf");
+                    theFactory.addFormat(tempFmt);
 
-                tempFmt = new PlaylistFormat(PL_SMIL, "SMIL");
-                tempFmt.LocationFormat = PlaylistFormat.LocationFormatting.RFC_URI;
-                tempFmt.AddExtension(".smil");
-                tempFmt.AddExtension(".smi");
-                tempFmt.AddExtension(".zpl");
-                tempFmt.AddExtension(".wpl");
-                theFactory.addFormat(tempFmt);
+                    tempFmt = new PlaylistFormat(PL_SMIL, "SMIL");
+                    tempFmt.LocationFormat = PlaylistFormat.LocationFormatting.RFC_URI;
+                    tempFmt.AddExtension(".smil");
+                    tempFmt.AddExtension(".smi");
+                    tempFmt.AddExtension(".zpl");
+                    tempFmt.AddExtension(".wpl");
+                    theFactory.addFormat(tempFmt);
 
-                tempFmt = new PlaylistFormat(PL_ASX, "ASX");
-                tempFmt.LocationFormat = PlaylistFormat.LocationFormatting.FilePath;
-                tempFmt.AddExtension(".asx");
-                tempFmt.AddExtension(".wax");
-                tempFmt.AddExtension(".wvx");
-                theFactory.addFormat(tempFmt);
+                    tempFmt = new PlaylistFormat(PL_ASX, "ASX");
+                    tempFmt.LocationFormat = PlaylistFormat.LocationFormatting.FilePath;
+                    tempFmt.AddExtension(".asx");
+                    tempFmt.AddExtension(".wax");
+                    tempFmt.AddExtension(".wvx");
+                    theFactory.addFormat(tempFmt);
 
-                tempFmt = new PlaylistFormat(PL_B4S, "B4S");
-                tempFmt.Encoding = PlaylistFormat.FileEncoding.UTF8_NO_BOM;
-                tempFmt.LocationFormat = PlaylistFormat.LocationFormatting.RFC_URI;
-                tempFmt.AddExtension(".b4s");
-                theFactory.addFormat(tempFmt);
+                    tempFmt = new PlaylistFormat(PL_B4S, "B4S");
+                    tempFmt.Encoding = PlaylistFormat.FileEncoding.UTF8_NO_BOM;
+                    tempFmt.LocationFormat = PlaylistFormat.LocationFormatting.RFC_URI;
+                    tempFmt.AddExtension(".b4s");
+                    theFactory.addFormat(tempFmt);
+                }
             }
 
             return theFactory;
         }
 
+        /// <summary>
+        /// Create a new playlist management object from the given parameters
+        /// </summary>
+        /// <param name="path">Path of the playlist file to open</param>
+        /// <param name="locationFormatting">Formatting of paths within the playlist</param>
+        /// <param name="fileEncoding">Encoding of the file</param>
+        /// <param name="alternate">Internal use; should be zero when called from outside</param>
+        /// <returns></returns>
         public IPlaylistIO GetPlaylistIO(
-            string path, 
-            PlaylistFormat.LocationFormatting locationFormatting = PlaylistFormat.LocationFormatting.Undefined, 
+            string path,
+            PlaylistFormat.LocationFormatting locationFormatting = PlaylistFormat.LocationFormatting.Undefined,
             PlaylistFormat.FileEncoding fileEncoding = PlaylistFormat.FileEncoding.Undefined,
             int alternate = 0)
         {
@@ -101,6 +138,11 @@ namespace ATL.Playlist
             return result;
         }
 
+        /// <summary>
+        /// Create a new playlist management object from the given playlist format code (see public constants in PlaylistIOFactory)
+        /// </summary>
+        /// <param name="formatId">Playlist format code of the object to create</param>
+        /// <returns>New playlist management object correspondingf to the given code</returns>
         public IPlaylistIO GetPlaylistIO(int formatId)
         {
             IPlaylistIO theReader = null;

@@ -66,7 +66,7 @@ As a fellow audiophile and developer, I'm proudly extending and improving their 
 
 ## How to use it ?  Which platforms and .NET/Mono versions does ATL run on ?
 
-The ATL library runs on .NET Core 2.0+ / .NET Standard 2.0+ / .NET Framework 3.0+ / Mono 2.0+
+The ATL library runs on .NET Core 2.0+ / .NET Standard 2.0+ / .NET Framework 4.5+ / Mono 2.0+
 
 ATL unit tests run on .NET Framework 4.5+
 
@@ -88,7 +88,9 @@ R= Read / W= Write
 
 Audio format | Extensions | ID3v1.0-1.1 support | ID3v2.2-2.4 support (1) | APEtag 1.0-2.0 support | Format-specific tagging support
 ---|---|---|---|---|---
-Advanced Audio Coding, Apple Lossless (ALAC) | .AAC, .MP4, .M4A | R/W | R/W | R/W | R/W
+Advanced Audio Coding, Apple Lossless (ALAC) | .AAC, .MP4, .M4A, .M4B | R/W | R/W | R/W | R/W
+Apple Core Audio | .CAF |  |  |  | (5)
+Audible | .AAX, .AA | R/W | R/W | R/W | R/W
 Audio Interchange File Format | .AIF, .AIFF, .AIFC |  | R/W |  | R/W
 Digital Theatre System | .DTS |  |  |  | 
 Direct Stream Digital | .DSD, .DSF |  | R/W |  | 
@@ -124,11 +126,13 @@ Windows Media Audio/Advanced Systems Format|.WMA, .ASF| | | |R/W|
 
 (4) : Support for BEXT, LIST INFO and iXML chunks
 
+(5) : Reads audio properties only, due to the rarity of sample CAF files tagged with actual metadata
+
 
 ### DETECTED FIELDS
 
 * __Audio properties (from audio data)__ : Bitrate, Sample rate, Duration, VBR, Codec family, Channels count and arrangement
-* __Standard Metadata (from tags)__ : Title, Artist, Album Artist, Composer, Conductor, Description, Comment, Genre, Track number, Total tracks, Disc number, Total discs, Recording Year and Date, Album, Rating, Publisher, Copyright, Original album, Original artist, Embedded pictures, [Chapters](https://github.com/Zeugma440/atldotnet/wiki/Focus-on-Chapter-metadata), Unsynchronized and synchronized Lyrics
+* __Standard Metadata (from tags)__ : Title, Artist, Album Artist, Composer, Conductor, Description, Comment, Genre, Track number, Total tracks, Disc number, Total discs, Recording Year and Date, Album, Rating, Publisher, Publishing Date, Copyright, Original album, Original artist, Embedded pictures, [Chapters](https://github.com/Zeugma440/atldotnet/wiki/Focus-on-Chapter-metadata), Unsynchronized and synchronized Lyrics
 * __Custom Metadata__ : any other field that might be in the tag is readable __and__ editable by ATL
 
 
@@ -148,7 +152,7 @@ CUE
 ## What is the roadmap of ATL.NET ?
 
 * Support for Broadcast wave metadata : aXML and XMP
-* Support for other audio file formats : Speex, Theora, Audible
+* Support for other audio file formats : Speex, Theora
 * Connectors to __other library file formats__ (e.g. iTunes)
 
 NB : Any user request that can be granted quickly will take priority over the roadmap
@@ -165,7 +169,7 @@ ATL.NET is based on :
 
 ## Special thanks for their contributions to...
 
-[leglubert](https://github.com/leglubert), [tarrats](https://github.com/tarrats), [DividedSE](https://github.com/DividedSE)
+[leglubert](https://github.com/leglubert), [tarrats](https://github.com/tarrats), [DividedSE](https://github.com/DividedSE), [audiamus](https://github.com/audiamus)
 
 
 ## Find this library useful? :heart:

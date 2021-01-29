@@ -1,42 +1,67 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 
 namespace ATL.Logging
 {
-	/// <summary>
-	/// This class handles the logging of the application's messages
-	/// </summary>
-	public class Log
-	{
-		// Definition of the four levels of logging
-		public const int LV_DEBUG		= 0x00000008;
-		public const int LV_INFO		= 0x00000004;
-		public const int LV_WARNING		= 0x00000002;
-		public const int LV_ERROR		= 0x00000001;
+    /// <summary>
+    /// This class handles the logging of the application's messages
+    /// </summary>
+    public class Log
+    {
+        // Definition of the four levels of logging
+        /// <summary>
+        /// Debug logging level
+        /// </summary>
+        public const int LV_DEBUG = 0x00000008;
+        /// <summary>
+        /// Info logging level
+        /// </summary>
+		public const int LV_INFO = 0x00000004;
+        /// <summary>
+        /// Warning logging level
+        /// </summary>
+		public const int LV_WARNING = 0x00000002;
+        /// <summary>
+        /// Error logging level
+        /// </summary>
+		public const int LV_ERROR = 0x00000001;
 
-		
-		// Definition of a message ("a line of the log") 
-		public struct LogItem
-		{
-			public DateTime When;	// Date of the message
-			public int Level;		// Logging level
-            public string Location; // Location of the message (e.g. filename, line, module...)
-			public string Message;	// Contents of the message
-		}
+
+        /// <summary>
+        /// Definition of a message ("a line of the log")  
+        /// </summary>
+        public struct LogItem
+        {
+            /// <summary>
+            /// Date of the message
+            /// </summary>
+			public DateTime When;
+            /// <summary>
+            /// Logging level
+            /// </summary>
+			public int Level;
+            /// <summary>
+            /// Location of the message (e.g. filename, line, module...)
+            /// </summary>
+            public string Location;
+            /// <summary>
+            /// Contents of the message
+            /// </summary>
+			public string Message;
+        }
 
 
-		// Storage structure containing each LogItem logged since last reset 
+        // Storage structure containing each LogItem logged since last reset 
         private IList<LogItem> masterLog;
-		
-		// Storage structure containing each LogDevice registered by this class
+
+        // Storage structure containing each LogDevice registered by this class
         private IList<ILogDevice> logDevices;
 
         // Storage structure containing current locations according to calling thread ID
         private IDictionary<int, string> locations;
 
-        
+
         // ASYNCHRONOUS LOGGING
 
         // Indicates if logging is immediate or asynchronous (default : immediate)
@@ -46,56 +71,56 @@ namespace ATL.Logging
         private IList<LogItem> asyncQueue = new List<LogItem>();
 
 
-		// ---------------------------------------------------------------------------
-		 
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public Log()
-		{
+        // ---------------------------------------------------------------------------
+
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        public Log()
+        {
             masterLog = new List<LogItem>();
-			logDevices = new List<ILogDevice>();
+            logDevices = new List<ILogDevice>();
             locations = new Dictionary<int, string>();
 
             // Define default location
             locations[Thread.CurrentThread.ManagedThreadId] = "";
-		}
+        }
 
-		/// <summary>
-		/// Logs the provided message with the LV_DEBUG logging level
-		/// </summary>
-		/// <param name="msg">Contents of the message</param>
-		public void Debug(String msg)
-		{
-			Write(LV_DEBUG,msg);
-		}
+        /// <summary>
+        /// Log the provided message with the LV_DEBUG logging level
+        /// </summary>
+        /// <param name="msg">Contents of the message</param>
+        public void Debug(String msg)
+        {
+            Write(LV_DEBUG, msg);
+        }
 
-		/// <summary>
-		/// Logs the provided message with the LV_INFO logging level
-		/// </summary>
-		/// <param name="msg">Contents of the message</param>
-		public void Info(String msg)
-		{
-			Write(LV_INFO,msg);
-		}
+        /// <summary>
+        /// Log the provided message with the LV_INFO logging level
+        /// </summary>
+        /// <param name="msg">Contents of the message</param>
+        public void Info(String msg)
+        {
+            Write(LV_INFO, msg);
+        }
 
-		/// <summary>
-		/// Logs the provided message with the LV_WARNING logging level
-		/// </summary>
-		/// <param name="msg">Contents of the message</param>
-		public void Warning(String msg)
-		{
-			Write(LV_WARNING,msg);
-		}
+        /// <summary>
+        /// Log the provided message with the LV_WARNING logging level
+        /// </summary>
+        /// <param name="msg">Contents of the message</param>
+        public void Warning(String msg)
+        {
+            Write(LV_WARNING, msg);
+        }
 
-		/// <summary>
-		/// Logs the provided message with the LV_ERROR logging level
-		/// </summary>
-		/// <param name="msg">Contents of the message</param>
-		public void Error(String msg)
-		{
-			Write(LV_ERROR,msg);
-		}
+        /// <summary>
+        /// Log the provided message with the LV_ERROR logging level
+        /// </summary>
+        /// <param name="msg">Contents of the message</param>
+        public void Error(String msg)
+        {
+            Write(LV_ERROR, msg);
+        }
 
         /// <summary>
         /// Set current location
@@ -115,24 +140,23 @@ namespace ATL.Logging
 
 
         /// <summary>
-        /// Logs the provided message with the provided logging level
+        /// Log the provided message with the provided logging level
         /// </summary>
         /// <param name="level">Logging level of the new message</param>
         /// <param name="msg">Contents of the new message</param>
-        /// <param name="forceDisplay">If true, forces all registered ILogDevices to immediately log the message, even if asynchoronous logging is enabled</param>
         public void Write(int level, String msg)
         {
             write(level, msg, false);
         }
 
-		private void write(int level, string msg, bool forceDisplay)
-		{
+        private void write(int level, string msg, bool forceDisplay)
+        {
             // Creation and filling of the new LogItem
             LogItem theItem = new LogItem();
 
-			theItem.When = DateTime.Now;
-			theItem.Level = level;
-			theItem.Message = msg;
+            theItem.When = DateTime.Now;
+            theItem.Level = level;
+            theItem.Message = msg;
             if (locations.ContainsKey(Thread.CurrentThread.ManagedThreadId)) theItem.Location = locations[Thread.CurrentThread.ManagedThreadId]; else theItem.Location = "";
 
             lock (masterLog)
@@ -145,7 +169,7 @@ namespace ATL.Logging
         }
 
         /// <summary>
-        /// Logs the provided message with the provided logging level
+        /// Log the provided message with the provided logging level
         /// </summary>
         /// <param name="theItem">Message to log</param>
         /// <param name="forceDisplay">If true, forces all registered ILogDevices to immediately log the message, even if asynchoronous logging is enabled</param>
@@ -166,38 +190,38 @@ namespace ATL.Logging
                     aLogger.DoLog(theItem);
                 }
             }
-		}
+        }
 
-		
-		/// <summary>
-		/// Clears the whole list of logged items
-		/// </summary>
-		public void ClearAll()
-		{
+
+        /// <summary>
+        /// Clear the whole list of logged items
+        /// </summary>
+        public void ClearAll()
+        {
             lock (masterLog)
             {
                 masterLog.Clear();
             }
-		}
+        }
 
 
-		/// <summary>
-		/// Gets all the logged items 
-		/// </summary>
-		/// <returns>List of all the logged items</returns>
-		public IList<LogItem> GetAllItems()
-		{
-			return GetAllItems(0x0000000F);
-		}
+        /// <summary>
+        /// Get all the logged items 
+        /// </summary>
+        /// <returns>List of all the logged items</returns>
+        public IList<LogItem> GetAllItems()
+        {
+            return GetAllItems(0x0000000F);
+        }
 
-		 
-		/// <summary>
-		/// Gets the logged items whose logging level matches the provided mask 
-		/// </summary>
-		/// <param name="levelMask">Logging level mask</param>
-		/// <returns>List of the matching logged items</returns>
-		public IList<LogItem> GetAllItems(int levelMask)
-		{
+
+        /// <summary>
+        /// Get the logged items whose logging level matches the provided mask 
+        /// </summary>
+        /// <param name="levelMask">Logging level mask</param>
+        /// <returns>List of the matching logged items</returns>
+        public IList<LogItem> GetAllItems(int levelMask)
+        {
             IList<LogItem> result = new List<LogItem>();
 
             lock (masterLog)
@@ -210,23 +234,23 @@ namespace ATL.Logging
                     }
                 }
             }
-			return result;
-		}
+            return result;
+        }
 
-
-		/// <summary>
-		/// Registers a LogDevice
-		/// A registered LogDevice will be called each time a new LogItem is received
-		/// (see Write method) 
-		/// </summary>
-		/// <param name="aLogger">Device to register</param>
-		public void Register(ILogDevice aLogger)
-		{
-			logDevices.Add(aLogger);
-		}
 
         /// <summary>
-        /// Marks logging as asynchronous : no call will be made
+        /// Register a LogDevice
+        /// A registered LogDevice will be called each time a new LogItem is received
+        /// (see Write method) 
+        /// </summary>
+        /// <param name="aLogger">Device to register</param>
+        public void Register(ILogDevice aLogger)
+        {
+            logDevices.Add(aLogger);
+        }
+
+        /// <summary>
+        /// Mark logging as asynchronous : no call will be made
         /// to LogDevice.DoLog until FlushQueue or Release are called
         /// </summary>
         public void SwitchAsync()
@@ -235,7 +259,7 @@ namespace ATL.Logging
         }
 
         /// <summary>
-        /// Flushes all queued LogItems through call to LogDevice.DoLog
+        /// Flush all queued LogItems through call to LogDevice.DoLog
         /// </summary>
         public void FlushQueue()
         {
@@ -250,7 +274,7 @@ namespace ATL.Logging
         }
 
         /// <summary>
-        /// Makes logging synchronous again and flushes remaining LogItems in queue
+        /// Make logging synchronous again and flushes remaining LogItems in queue
         /// </summary>
         public void SwitchSync()
         {
@@ -258,9 +282,14 @@ namespace ATL.Logging
             FlushQueue();
         }
 
+        /// <summary>
+        /// Get the name of the given logging level in english
+        /// </summary>
+        /// <param name="level">Logging level</param>
+        /// <returns>Name of the given logging level</returns>
         public static string getLevelName(int level)
         {
-            switch(level)
+            switch (level)
             {
                 case LV_DEBUG: return "DEBUG";
                 case LV_INFO: return "INFO";
@@ -270,5 +299,5 @@ namespace ATL.Logging
             }
         }
 
-	}
+    }
 }
